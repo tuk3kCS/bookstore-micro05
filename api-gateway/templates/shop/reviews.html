@@ -1,0 +1,162 @@
+{% extends "shop/base.html" %}
+{% block title %}My Reviews - BookStore{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-7">
+        <h3 class="mb-4"><i class="bi bi-star me-2"></i>My Reviews</h3>
+
+        {% if reviews %}
+        {% for review in reviews %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1"><a href="/books/{{ review.book_id }}/" class="text-decoration-none">{{ review.book_title }}</a></h6>
+                        <div class="mb-2">
+                            {% for i in "12345" %}
+                                {% if forloop.counter <= review.rating %}
+                                <i class="bi bi-star-fill star-filled"></i>
+                                {% else %}
+                                <i class="bi bi-star star-empty"></i>
+                                {% endif %}
+                            {% endfor %}
+                            <span class="ms-2 text-muted small">{{ review.rating }}/5</span>
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ review.created_at|truncatechars:10 }}</small>
+                </div>
+                {% if review.comment %}
+                <p class="mb-0 text-muted">{{ review.comment }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5 text-muted">
+                <i class="bi bi-chat-square-text fs-1 d-block mb-2"></i>
+                <p>You haven't written any reviews yet.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-5">
+        <h3 class="mb-4">Write a Review</h3>
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="book_id" id="selected-book-id" required>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Book</label>
+                        <div class="position-relative">
+                            <input type="text" id="book-search" class="form-control" placeholder="Search for a book..." autocomplete="off">
+                            <div id="book-results" class="list-group position-absolute w-100 shadow-sm" style="z-index:10; max-height:220px; overflow-y:auto; display:none;"></div>
+                        </div>
+                        <div id="selected-book" class="mt-2" style="display:none;">
+                            <div class="d-flex align-items-center gap-2 border rounded p-2 bg-light">
+                                <i class="bi bi-journal-richtext text-muted"></i>
+                                <span id="selected-book-title" class="fw-semibold flex-grow-1"></span>
+                                <button type="button" id="clear-book" class="btn btn-sm btn-outline-secondary border-0">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rating</label>
+                        <div class="d-flex gap-2">
+                            {% for val in "54321" %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="rating" value="{{ val }}" id="star{{ val }}" {% if val == "5" %}checked{% endif %}>
+                                <label class="form-check-label" for="star{{ val }}">
+                                    {{ val }} <i class="bi bi-star-fill star-filled"></i>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Your Review</label>
+                        <textarea name="comment" class="form-control" rows="4" placeholder="Tell others what you think about this book..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-shop w-100" id="submit-btn" disabled>
+                        <i class="bi bi-send me-2"></i>Submit Review
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const books = [
+    {% for book in books %}
+    { id: {{ book.id }}, title: "{{ book.title|escapejs }}", author: "{{ book.author|escapejs }}" },
+    {% endfor %}
+];
+
+const searchInput = document.getElementById('book-search');
+const resultsDiv = document.getElementById('book-results');
+const selectedDiv = document.getElementById('selected-book');
+const selectedTitle = document.getElementById('selected-book-title');
+const hiddenInput = document.getElementById('selected-book-id');
+const clearBtn = document.getElementById('clear-book');
+const submitBtn = document.getElementById('submit-btn');
+
+searchInput.addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    resultsDiv.innerHTML = '';
+    if (!q) { resultsDiv.style.display = 'none'; return; }
+    const matches = books.filter(b =>
+        b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)
+    ).slice(0, 8);
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="list-group-item text-muted small">No books found</div>';
+    } else {
+        matches.forEach(b => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'list-group-item list-group-item-action py-2';
+            item.innerHTML = '<strong>' + b.title + '</strong> <small class="text-muted">— ' + b.author + '</small>';
+            item.addEventListener('click', () => selectBook(b));
+            resultsDiv.appendChild(item);
+        });
+    }
+    resultsDiv.style.display = 'block';
+});
+
+function selectBook(book) {
+    hiddenInput.value = book.id;
+    selectedTitle.textContent = book.title + ' — ' + book.author;
+    selectedDiv.style.display = 'block';
+    searchInput.value = '';
+    searchInput.style.display = 'none';
+    resultsDiv.style.display = 'none';
+    submitBtn.disabled = false;
+}
+
+clearBtn.addEventListener('click', function() {
+    hiddenInput.value = '';
+    selectedDiv.style.display = 'none';
+    searchInput.style.display = '';
+    searchInput.value = '';
+    searchInput.focus();
+    submitBtn.disabled = true;
+});
+
+document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+        resultsDiv.style.display = 'none';
+    }
+});
+
+searchInput.addEventListener('focus', function() {
+    if (this.value.trim()) this.dispatchEvent(new Event('input'));
+});
+</script>
+{% endblock %}

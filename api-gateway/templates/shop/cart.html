@@ -1,0 +1,134 @@
+{% extends "shop/base.html" %}
+{% block title %}My Cart - BookStore{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-cart3 me-2"></i>My Shopping Cart</h3>
+
+{% if error %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>{{ error }}
+    <a href="/books/" class="alert-link ms-2">Start browsing books</a>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body p-0">
+                {% if items %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Book</th>
+                                <th class="text-center" style="width:150px">Quantity</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Subtotal</th>
+                                <th class="text-center" style="width:60px"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="bg-light rounded p-2">
+                                            <i class="bi bi-journal-richtext fs-5 text-muted"></i>
+                                        </div>
+                                        <div>
+                                            <a href="/books/{{ item.book_id }}/" class="text-decoration-none"><strong>{{ item.book_title }}</strong></a>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <form method="post" class="qty-form d-flex align-items-center justify-content-center gap-1">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="update">
+                                        <input type="hidden" name="item_id" value="{{ item.id }}">
+                                        <input type="number" name="quantity" value="{{ item.quantity }}"
+                                               min="1" max="{{ item.book_stock }}"
+                                               class="form-control form-control-sm text-center qty-input"
+                                               data-price="{{ item.book_price }}"
+                                               style="width:70px">
+                                    </form>
+                                </td>
+                                <td class="text-end">${{ item.book_price }}</td>
+                                <td class="text-end price-tag subtotal-cell">${{ item.subtotal }}</td>
+                                <td class="text-center">
+                                    <form method="post" onsubmit="return confirm('Remove this item?')">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="item_id" value="{{ item.id }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove item">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-cart-x fs-1 d-block mb-2"></i>
+                    <p>Your cart is empty.</p>
+                    <a href="/books/" class="btn btn-shop">Browse Books</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if items %}
+        <div class="card">
+            <div class="card-body">
+                <h6 class="mb-3">Cart Summary</h6>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Items</span>
+                    <strong>{{ items|length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Total</span>
+                    <span class="price-tag fs-5" id="cart-total">${{ total }}</span>
+                </div>
+                <hr>
+                <a href="/checkout/" class="btn btn-shop w-100 btn-lg">
+                    <i class="bi bi-bag-check me-2"></i>Proceed to Checkout
+                </a>
+                <a href="/books/" class="btn btn-outline-shop w-100 mt-2">
+                    <i class="bi bi-arrow-left me-1"></i>Continue Shopping
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let submitTimer = null;
+document.querySelectorAll('.qty-input').forEach(input => {
+    input.addEventListener('input', function() {
+        const qty = Math.max(1, parseInt(this.value) || 1);
+        const price = parseFloat(this.dataset.price) || 0;
+        const subtotal = (qty * price).toFixed(2);
+        this.closest('tr').querySelector('.subtotal-cell').textContent = '$' + subtotal;
+
+        let total = 0;
+        document.querySelectorAll('.qty-input').forEach(inp => {
+            const q = Math.max(1, parseInt(inp.value) || 1);
+            const p = parseFloat(inp.dataset.price) || 0;
+            total += q * p;
+        });
+        document.getElementById('cart-total').textContent = '$' + total.toFixed(2);
+
+        const form = this.closest('form');
+        clearTimeout(submitTimer);
+        submitTimer = setTimeout(() => form.submit(), 800);
+    });
+});
+</script>
+{% endblock %}

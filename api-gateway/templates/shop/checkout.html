@@ -1,0 +1,94 @@
+{% extends "shop/base.html" %}
+{% block title %}Checkout - BookStore{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-bag-check me-2"></i>Checkout</h3>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">Order Items</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Book</th>
+                            <th class="text-center">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td><a href="/books/{{ item.book_id }}/" class="text-decoration-none">{{ item.book_title|default:"Book" }}</a></td>
+                            <td class="text-center">{{ item.quantity }}</td>
+                            <td class="text-end">${{ item.book_price|default:"0" }}</td>
+                            <td class="text-end fw-bold">${{ item.subtotal|default:"0" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">No items in cart. <a href="/books/">Browse books</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if items %}
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="3" class="text-end fw-bold">Total</td>
+                            <td class="text-end price-tag fs-5">${{ total }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">Place Order</h6>
+            </div>
+            <div class="card-body">
+                {% if items %}
+                <form method="post">
+                    {% csrf_token %}
+                    {% for item in items %}
+                    <input type="hidden" name="item_book_id" value="{{ item.book_id }}">
+                    <input type="hidden" name="item_quantity" value="{{ item.quantity }}">
+                    <input type="hidden" name="item_price" value="{{ item.book_price|default:'0' }}">
+                    {% endfor %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Payment Method</label>
+                        <select name="payment_method" class="form-select">
+                            <option value="credit_card"><i class="bi bi-credit-card"></i> Credit Card</option>
+                            <option value="debit_card">Debit Card</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cash">Cash on Delivery</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Shipping Address</label>
+                        <textarea name="shipping_address" class="form-control" rows="3" required placeholder="Enter your full shipping address..."></textarea>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded">
+                        <span class="fw-bold">Order Total</span>
+                        <span class="price-tag fs-4">${{ total }}</span>
+                    </div>
+                    <button type="submit" class="btn btn-shop btn-lg w-100">
+                        <i class="bi bi-check-circle me-2"></i>Place Order
+                    </button>
+                    <p class="text-muted small text-center mt-2 mb-0">Payment and shipping will be processed automatically.</p>
+                </form>
+                {% else %}
+                <p class="text-center text-muted mb-0">Add items to your cart first.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

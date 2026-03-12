@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Shipments - BookStore{% endblock %}
+{% block page_title %}<i class="bi bi-truck me-2"></i>Shipments{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div><h6 class="mb-0 d-inline">All Shipments</h6> <span class="badge bg-primary ms-2">{{ shipments|length }}</span></div>
+        <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Shipments are created automatically with orders</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Order ID</th>
+                        <th>Address</th>
+                        <th>Status</th>
+                        <th>Tracking #</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ship in shipments %}
+                    <tr>
+                        <td>{{ ship.id }}</td>
+                        <td><strong>#{{ ship.order_id }}</strong></td>
+                        <td class="small">{{ ship.address|truncatechars:30 }}</td>
+                        <td>
+                            {% if ship.status == 'delivered' %}
+                            <span class="badge bg-success">{{ ship.status }}</span>
+                            {% elif ship.status == 'shipped' %}
+                            <span class="badge bg-info text-dark">{{ ship.status }}</span>
+                            {% elif ship.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{{ ship.status }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ ship.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ ship.tracking_number|default:"—" }}</code></td>
+                        <td class="small text-muted">{{ ship.created_at|truncatechars:19 }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1 btn-edit"
+                                data-bs-toggle="modal" data-bs-target="#editModal"
+                                data-id="{{ ship.id }}"
+                                data-status="{{ ship.status }}"
+                                data-tracking="{{ ship.tracking_number|default:'' }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="post" class="d-inline" onsubmit="return confirm('Delete this shipment?')">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="pk" value="{{ ship.id }}">
+                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">No shipments yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="pk" id="edit-pk">
+                <div class="modal-header">
+                    <h6 class="modal-title"><i class="bi bi-pencil me-2"></i>Update Shipment</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" id="edit-status" class="form-select">
+                            <option value="pending">Pending</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tracking Number</label>
+                        <input type="text" name="tracking_number" id="edit-tracking" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('edit-pk').value = this.dataset.id;
+        document.getElementById('edit-status').value = this.dataset.status;
+        document.getElementById('edit-tracking').value = this.dataset.tracking;
+    });
+});
+</script>
+{% endblock %}

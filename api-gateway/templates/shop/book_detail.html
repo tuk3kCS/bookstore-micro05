@@ -1,0 +1,247 @@
+{% extends "shop/base.html" %}
+{% block title %}{{ book.title }} - BookStore{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="/books/" class="text-decoration-none">Books</a></li>
+        <li class="breadcrumb-item active">{{ book.title }}</li>
+    </ol>
+</nav>
+
+<div class="row g-4 mb-5">
+    <!-- Book Cover Placeholder -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center py-5" style="background: linear-gradient(135deg, #f0e6ff 0%, #e8daf5 100%); border-radius: 0.75rem;">
+                <i class="bi bi-journal-richtext" style="font-size: 6rem; color: #6f42c1;"></i>
+                <div class="mt-3">
+                    {% if book.stock > 0 %}
+                    <span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i>In Stock ({{ book.stock }})</span>
+                    {% else %}
+                    <span class="badge bg-danger fs-6 px-3 py-2"><i class="bi bi-x-circle me-1"></i>Sold Out</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book Info -->
+    <div class="col-md-8">
+        <h2 class="fw-bold mb-1">{{ book.title }}</h2>
+        <p class="text-muted fs-5 mb-2">by <strong>{{ book.author }}</strong></p>
+        {% if catalog_name %}
+        <div class="mb-3">
+            <a href="/books/?catalog={{ book.catalog_id }}" class="badge text-decoration-none" style="background:#6f42c1; font-size: 0.85rem;">
+                <i class="bi bi-folder me-1"></i>{{ catalog_name }}
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Rating Summary -->
+        <div class="d-flex align-items-center gap-2 mb-3">
+            {% if avg_rating > 0 %}
+            <div>
+                {% for i in "12345" %}
+                    {% if forloop.counter <= avg_rating %}
+                    <i class="bi bi-star-fill star-filled fs-5"></i>
+                    {% else %}
+                    <i class="bi bi-star star-empty fs-5"></i>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <span class="fw-bold">{{ avg_rating }}</span>
+            <span class="text-muted">({{ reviews|length }} review{{ reviews|length|pluralize }})</span>
+            {% else %}
+            <span class="text-muted"><i class="bi bi-star me-1"></i>No reviews yet</span>
+            {% endif %}
+        </div>
+
+        <div class="mb-4">
+            <span class="price-tag" style="font-size: 2rem;">${{ book.price }}</span>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small mb-3">Book Details</h6>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-person-fill text-muted"></i>
+                            <div><small class="text-muted d-block">Author</small><strong>{{ book.author }}</strong></div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-tag-fill text-muted"></i>
+                            <div><small class="text-muted d-block">Price</small><strong>${{ book.price }}</strong></div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-box-seam-fill text-muted"></i>
+                            <div><small class="text-muted d-block">Stock</small><strong>{{ book.stock }} available</strong></div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-folder text-muted"></i>
+                            <div><small class="text-muted d-block">Category</small><strong>{{ catalog_name|default:"Uncategorized" }}</strong></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add to Cart -->
+        {% if customer and book.stock > 0 %}
+        <form method="post" class="d-flex align-items-end gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_to_cart">
+            <input type="hidden" name="cart_id" value="{{ cart_id|default:'' }}">
+            <div>
+                <label class="form-label small fw-bold">Quantity</label>
+                <input type="number" name="quantity" value="1" min="1" max="{{ book.stock }}" class="form-control" style="width: 90px;">
+            </div>
+            <button type="submit" class="btn btn-shop btn-lg px-4">
+                <i class="bi bi-cart-plus me-2"></i>Add to Cart
+            </button>
+        </form>
+        {% elif not customer %}
+        <a href="/login/" class="btn btn-outline-shop btn-lg">
+            <i class="bi bi-box-arrow-in-right me-2"></i>Sign in to purchase
+        </a>
+        {% else %}
+        <button class="btn btn-secondary btn-lg" disabled>
+            <i class="bi bi-x-circle me-2"></i>Out of Stock
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Reviews Section -->
+<div class="row g-4">
+    <div class="col-lg-{% if customer %}7{% else %}12{% endif %}">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0"><i class="bi bi-chat-quote me-2"></i>Customer Reviews</h4>
+            <span class="badge bg-secondary">{{ reviews|length }}</span>
+        </div>
+
+        {% if reviews %}
+        {% for review in reviews %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <strong>{{ review.customer_name }}</strong>
+                        <div class="mt-1">
+                            {% for i in "12345" %}
+                                {% if forloop.counter <= review.rating %}
+                                <i class="bi bi-star-fill star-filled"></i>
+                                {% else %}
+                                <i class="bi bi-star star-empty"></i>
+                                {% endif %}
+                            {% endfor %}
+                            <span class="ms-1 text-muted small">{{ review.rating }}/5</span>
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ review.created_at|truncatechars:10 }}</small>
+                </div>
+                {% if review.comment %}
+                <p class="mb-0 mt-2">{{ review.comment }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center py-4 text-muted">
+                <i class="bi bi-chat-square-text fs-2 d-block mb-2"></i>
+                <p class="mb-0">No reviews yet. Be the first to review this book!</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if customer %}
+    <div class="col-lg-5">
+        <h4 class="mb-3">Write a Review</h4>
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="review">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rating</label>
+                        <div class="d-flex gap-3">
+                            {% for val in "54321" %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="rating" value="{{ val }}" id="star{{ val }}" {% if val == "5" %}checked{% endif %}>
+                                <label class="form-check-label" for="star{{ val }}">
+                                    {{ val }} <i class="bi bi-star-fill star-filled"></i>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Your Review</label>
+                        <textarea name="comment" class="form-control" rows="4" placeholder="What did you think about this book?"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-shop w-100">
+                        <i class="bi bi-send me-2"></i>Submit Review
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if recommendations %}
+<hr class="my-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-stars me-2" style="color:#6f42c1"></i>You Might Also Like</h4>
+    <span class="badge bg-light text-dark border"><i class="bi bi-robot me-1"></i>AI Powered</span>
+</div>
+<div class="row g-4">
+    {% for rec in recommendations %}
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="card h-100 card-hover" style="cursor:pointer;" onclick="window.location='/books/{{ rec.book_id }}/'">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge" style="background:#6f42c1; font-size:0.75rem">
+                        <i class="bi bi-stars me-1"></i>{{ rec.score }}% match
+                    </span>
+                    {% if rec.catalog_name %}
+                    <span class="badge bg-light text-dark border" style="font-size:0.65rem">{{ rec.catalog_name }}</span>
+                    {% endif %}
+                </div>
+                <div class="text-center my-2">
+                    <div class="bg-light rounded p-3 d-inline-block">
+                        <i class="bi bi-journal-richtext fs-1 text-muted"></i>
+                    </div>
+                </div>
+                <h6 class="card-title mb-1">{{ rec.book_title }}</h6>
+                <small class="text-muted mb-1">by {{ rec.book_author }}</small>
+                {% if rec.reason %}
+                <small class="text-muted d-block mb-2"><i class="bi bi-robot me-1" style="color:#6f42c1"></i>{{ rec.reason|truncatechars:60 }}</small>
+                {% endif %}
+                <div class="mt-auto">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="price-tag">${{ rec.book_price }}</span>
+                        {% if rec.book_stock > 0 %}
+                        <span class="badge bg-success">In Stock</span>
+                        {% else %}
+                        <span class="badge bg-danger">Sold Out</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

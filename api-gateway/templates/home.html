@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - BookStore{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card blue p-3">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-journal-bookmark fs-2 text-primary me-3"></i>
+                <div>
+                    <div class="text-muted small">Books</div>
+                    <div class="fs-5 fw-bold">Manage</div>
+                </div>
+            </div>
+            <a href="/dashboard/books/" class="stretched-link"></a>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green p-3">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-people fs-2 text-success me-3"></i>
+                <div>
+                    <div class="text-muted small">Customers</div>
+                    <div class="fs-5 fw-bold">Manage</div>
+                </div>
+            </div>
+            <a href="/dashboard/customers/" class="stretched-link"></a>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange p-3">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-receipt fs-2 text-warning me-3"></i>
+                <div>
+                    <div class="text-muted small">Orders</div>
+                    <div class="fs-5 fw-bold">Manage</div>
+                </div>
+            </div>
+            <a href="/dashboard/orders/" class="stretched-link"></a>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card purple p-3">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-star fs-2 text-purple me-3" style="color:#6f42c1"></i>
+                <div>
+                    <div class="text-muted small">Reviews</div>
+                    <div class="fs-5 fw-bold">Manage</div>
+                </div>
+            </div>
+            <a href="/dashboard/reviews/" class="stretched-link"></a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6><i class="bi bi-folder me-2"></i>Catalogs</h6>
+            <p class="text-muted small mb-2">Manage book categories and catalogs.</p>
+            <a href="/dashboard/catalogs/" class="btn btn-sm btn-outline-primary">Go to Catalogs</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6><i class="bi bi-person-badge me-2"></i>Staff</h6>
+            <p class="text-muted small mb-2">Manage staff members who handle book operations.</p>
+            <a href="/dashboard/staffs/" class="btn btn-sm btn-outline-primary">Go to Staff</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6><i class="bi bi-person-workspace me-2"></i>Managers</h6>
+            <p class="text-muted small mb-2">Manage department managers.</p>
+            <a href="/dashboard/managers/" class="btn btn-sm btn-outline-primary">Go to Managers</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6><i class="bi bi-credit-card me-2"></i>Payments</h6>
+            <p class="text-muted small mb-2">View payment records for orders.</p>
+            <a href="/dashboard/payments/" class="btn btn-sm btn-outline-primary">Go to Payments</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6><i class="bi bi-truck me-2"></i>Shipments</h6>
+            <p class="text-muted small mb-2">Track and update shipment statuses.</p>
+            <a href="/dashboard/shipments/" class="btn btn-sm btn-outline-primary">Go to Shipments</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

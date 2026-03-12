@@ -1,0 +1,66 @@
+{% extends "shop/base.html" %}
+{% block title %}Sign In - BookStore{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        {% if show_register %}
+        <!-- Register Form -->
+        <div class="card">
+            <div class="card-body p-4">
+                <h4 class="text-center mb-4"><i class="bi bi-person-plus me-2"></i>Create Account</h4>
+                <form method="post" action="/register/">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="name" class="form-control form-control-lg" placeholder="John Doe" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" name="email" class="form-control form-control-lg" placeholder="john@example.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control form-control-lg" placeholder="Enter password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirm Password</label>
+                        <input type="password" name="password2" class="form-control form-control-lg" placeholder="Confirm password" required>
+                    </div>
+                    <button type="submit" class="btn btn-shop btn-lg w-100 mb-3">
+                        <i class="bi bi-check-lg me-2"></i>Register
+                    </button>
+                    <p class="text-center text-muted mb-0">
+                        Already have an account? <a href="/login/">Sign in</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <!-- Login Form -->
+        <div class="card">
+            <div class="card-body p-4">
+                <h4 class="text-center mb-4"><i class="bi bi-person-circle me-2"></i>Sign In</h4>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" name="email" class="form-control form-control-lg" placeholder="john@example.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control form-control-lg" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" class="btn btn-shop btn-lg w-100 mb-3">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                    </button>
+                    <p class="text-center text-muted mb-0">
+                        New here? <a href="/register/">Create an account</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

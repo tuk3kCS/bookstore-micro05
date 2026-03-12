@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Reviews - BookStore{% endblock %}
+{% block page_title %}<i class="bi bi-star me-2"></i>Reviews{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div><h6 class="mb-0 d-inline">All Reviews</h6> <span class="badge bg-primary ms-2">{{ reviews|length }}</span></div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Book</th>
+                        <th>Rating</th>
+                        <th>Comment</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for review in reviews %}
+                    <tr>
+                        <td>{{ review.id }}</td>
+                        <td>{{ review.customer_name }}</td>
+                        <td>{{ review.book_title }}</td>
+                        <td>
+                            {% for i in "12345" %}
+                                {% if forloop.counter <= review.rating %}
+                                <i class="bi bi-star-fill text-warning"></i>
+                                {% else %}
+                                <i class="bi bi-star text-muted"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="small">{{ review.comment|default:"—"|truncatechars:50 }}</td>
+                        <td class="small text-muted">{{ review.created_at|truncatechars:10 }}</td>
+                        <td>
+                            <form method="post" class="d-inline" onsubmit="return confirm('Delete this review?')">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="pk" value="{{ review.id }}">
+                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">No reviews yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

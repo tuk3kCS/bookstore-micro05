@@ -1,0 +1,146 @@
+{% extends "shop/base.html" %}
+{% block title %}My Orders - BookStore{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-bag me-2"></i>My Orders</h3>
+
+{% if orders %}
+<div class="row g-4">
+    {% for order in orders %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Order #{{ order.id }}</strong>
+                    <span class="text-muted ms-2 small">{{ order.created_at|truncatechars:19 }}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    {% if order.status == 'confirmed' %}
+                    <span class="badge bg-success fs-6">{{ order.status }}</span>
+                    {% elif order.status == 'pending' %}
+                    <span class="badge bg-warning text-dark fs-6">{{ order.status }}</span>
+                    {% elif order.status == 'cancelled' %}
+                    <span class="badge bg-danger fs-6">{{ order.status }}</span>
+                    {% elif order.status == 'delivered' %}
+                    <span class="badge bg-primary fs-6">{{ order.status }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary fs-6">{{ order.status }}</span>
+                    {% endif %}
+
+                    {% if order.can_modify %}
+                    <form method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to cancel Order #{{ order.id }}?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="cancel_order">
+                        <input type="hidden" name="order_id" value="{{ order.id }}">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-x-circle me-1"></i>Cancel
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-muted small text-uppercase">Total Amount</h6>
+                        <span class="price-tag fs-4">${{ order.total_amount }}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted small text-uppercase">Payment</h6>
+                        {% if order.payment %}
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="badge bg-info text-dark">{{ order.payment.method }}</span>
+                            <span class="badge {% if order.payment.status == 'pending' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                {{ order.payment.status }}
+                            </span>
+                            {% if order.can_modify %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
+                                    data-bs-target="#paymentModal{{ order.id }}">
+                                <i class="bi bi-pencil-square me-1"></i>Change
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span class="text-muted">Processing...</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted small text-uppercase">Shipping</h6>
+                        {% if order.shipment %}
+                        <span class="badge {% if order.shipment.status == 'delivered' %}bg-success{% elif order.shipment.status == 'shipped' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
+                            {{ order.shipment.status }}
+                        </span>
+                        {% if order.shipment.tracking_number %}
+                        <br><small class="text-muted">Tracking: <code>{{ order.shipment.tracking_number }}</code></small>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">Processing...</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if order.items %}
+                <hr>
+                <h6 class="text-muted small text-uppercase mb-2">Items</h6>
+                {% for item in order.items %}
+                <div class="d-flex justify-content-between align-items-center py-1">
+                    <span>
+                        <a href="/books/{{ item.book_id }}/" class="text-decoration-none">{{ item.book_title|default:"Book" }}</a>
+                        <span class="text-muted">x {{ item.quantity }}</span>
+                    </span>
+                    <span class="fw-bold">${{ item.price }}</span>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if order.can_modify and order.payment %}
+    <div class="modal fade" id="paymentModal{{ order.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="change_payment">
+                    <input type="hidden" name="order_id" value="{{ order.id }}">
+                    <input type="hidden" name="payment_id" value="{{ order.payment.id }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Change Payment Method — Order #{{ order.id }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted mb-3">Current method: <strong>{{ order.payment.method }}</strong></p>
+                        <label class="form-label fw-semibold">Select new payment method</label>
+                        <div class="d-flex flex-column gap-2">
+                            {% for val, label in payment_methods %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_method"
+                                       value="{{ val }}" id="pm_{{ order.id }}_{{ val }}"
+                                       {% if order.payment.method == val %}checked{% endif %}>
+                                <label class="form-check-label" for="pm_{{ order.id }}_{{ val }}">{{ label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-shop">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-bag-x fs-1 text-muted d-block mb-3"></i>
+    <h5 class="text-muted">No orders yet</h5>
+    <p class="text-muted">Your order history will appear here after you make a purchase.</p>
+    <a href="/books/" class="btn btn-shop">Start Shopping</a>
+</div>
+{% endif %}
+{% endblock %}
