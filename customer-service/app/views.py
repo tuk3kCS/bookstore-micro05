@@ -19,10 +19,15 @@ class CustomerListCreate(APIView):
         serializer = CustomerSerializer(data=request.data)
         if serializer.is_valid():
             customer = serializer.save()
-            requests.post(
-                f"{CART_SERVICE_URL}/carts/",
-                json={"customer_id": customer.id}
-            )
+            try:
+                requests.post(
+                    f"{CART_SERVICE_URL}/carts/",
+                    json={"customer_id": customer.id},
+                    timeout=5,
+                )
+            except Exception:
+                # Customer creation should not fail if cart-service is temporarily unavailable.
+                pass
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

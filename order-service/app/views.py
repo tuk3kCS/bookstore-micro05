@@ -22,9 +22,14 @@ class OrderListCreate(APIView):
 
         order = Order.objects.create(customer_id=customer_id, total_amount=total, status='pending')
         for item in items_data:
+            # Backward compatibility: accept book_id or item_type+item_id
+            item_type = item.get("item_type") or ("book" if item.get("book_id") is not None else None)
+            item_id = item.get("item_id") or item.get("book_id")
             OrderItem.objects.create(
                 order=order,
-                book_id=item["book_id"],
+                book_id=item.get("book_id") if item_type == "book" else None,
+                item_type=item_type or "book",
+                item_id=item_id,
                 quantity=item["quantity"],
                 price=item["price"]
             )

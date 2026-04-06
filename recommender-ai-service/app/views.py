@@ -72,9 +72,13 @@ class GenerateRecommendations(APIView):
 
         saved = []
         for item in results:
+            item_type = item.get("item_type") or ("book" if item.get("book_id") is not None else "book")
+            item_id = item.get("item_id") or item.get("book_id")
             rec = Recommendation.objects.create(
                 customer_id=item["customer_id"],
-                book_id=item["book_id"],
+                book_id=item_id if item_type == "book" else None,
+                item_type=item_type,
+                item_id=item_id,
                 score=item["score"],
                 reason=item["reason"],
             )

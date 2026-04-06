@@ -1,0 +1,56 @@
+@startuml Pay Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Pay Service (:8009)
+
+package "pay-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /payments/" as ep1 #E8F5E9
+        rectangle "POST /payments/" as ep2 #E8F5E9
+        rectangle "GET /payments/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /payments/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /payments/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "PaymentListCreate" as v1
+        component "PaymentDetail" as v2
+    }
+
+    map "Payment" as model {
+        id => BigAutoField (PK)
+        order_id => IntegerField
+        amount => DecimalField(10,2)
+        method => CharField(50)
+        status => CharField(50)
+        created_at => DateTimeField
+    }
+
+    database "pay_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+
+v1 --> model
+v2 --> model
+model --> db
+
+note right of model
+  Created automatically by
+  Order Service on new order.
+end note
+
+@enduml

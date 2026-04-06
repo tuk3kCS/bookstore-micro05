@@ -1,0 +1,56 @@
+@startuml Ship Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Ship Service (:8008)
+
+package "ship-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /shipments/" as ep1 #E8F5E9
+        rectangle "POST /shipments/" as ep2 #E8F5E9
+        rectangle "GET /shipments/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /shipments/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /shipments/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "ShipmentListCreate" as v1
+        component "ShipmentDetail" as v2
+    }
+
+    map "Shipment" as model {
+        id => BigAutoField (PK)
+        order_id => IntegerField
+        address => TextField
+        status => CharField(50)
+        tracking_number => CharField(255)
+        created_at => DateTimeField
+    }
+
+    database "ship_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+
+v1 --> model
+v2 --> model
+model --> db
+
+note right of model
+  Created automatically by
+  Order Service on new order.
+end note
+
+@enduml

@@ -1,0 +1,72 @@
+@startuml API Gateway
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam component {
+    BackgroundColor #E8F4FD
+    BorderColor #2196F3
+}
+
+title API Gateway (:8000)
+
+actor "Customer" as customer
+actor "Admin / Staff" as staff
+
+package "API Gateway" {
+
+    package "Customer Portal  (/)" as portal {
+        component "shop_home" as sh
+        component "shop_login\nshop_register\nshop_logout" as sauth
+        component "shop_books\nshop_book_detail" as sbooks
+        component "shop_clothes\nshop_clothes_detail" as sclothes
+        component "shop_cart\nshop_checkout" as scart
+        component "shop_orders" as sorders
+        component "shop_reviews" as sreviews
+        component "shop_account" as saccount
+    }
+
+    package "Admin Dashboard  (/dashboard/)" as dash {
+        component "dashboard_login\ndashboard_logout" as dauth
+        component "home" as dhome
+        component "book_list" as dbooks
+        component "clothes_product_list\nclothes_variant_list" as dclothes
+        component "customer_list" as dcust
+        component "staff_list" as dstaff
+        component "manager_list" as dmgr
+        component "catalog_list" as dcat
+        component "order_list" as dord
+        component "shipment_list" as dship
+        component "payment_list" as dpay
+        component "review_list" as drev
+    }
+
+    component "Helper Functions\n_safe_get, _safe_post\n_safe_put, _safe_delete" as helpers #FFFDE7
+}
+
+customer --> portal
+staff --> dash
+
+portal --> helpers
+dash --> helpers
+
+helpers -down-> [Customer Service\n:8001] : REST
+helpers -down-> [Book Service\n:8002] : REST
+helpers -down-> [Clothes Service\n:8012] : REST
+helpers -down-> [Cart Service\n:8003] : REST
+helpers -down-> [Staff Service\n:8004] : REST
+helpers -down-> [Manager Service\n:8005] : REST
+helpers -down-> [Catalog Service\n:8006] : REST
+helpers -down-> [Order Service\n:8007] : REST
+helpers -down-> [Ship Service\n:8008] : REST
+helpers -down-> [Pay Service\n:8009] : REST
+helpers -down-> [Comment-Rate Service\n:8010] : REST
+helpers -down-> [Recommender AI\n:8011] : REST
+
+note bottom of helpers
+  All inter-service communication
+  uses HTTP REST with requests library.
+  Timeout: 5 seconds per call.
+end note
+
+@enduml

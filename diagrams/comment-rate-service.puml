@@ -1,0 +1,67 @@
+@startuml Comment-Rate Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Comment-Rate Service (:8010)
+
+package "comment-rate-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /reviews/" as ep1 #E8F5E9
+        rectangle "POST /reviews/" as ep2 #E8F5E9
+        rectangle "GET /reviews/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /reviews/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /reviews/<pk>/" as ep5 #E8F5E9
+        rectangle "GET /reviews/book/<book_id>/" as ep6 #E8F5E9
+        rectangle "GET /reviews/item/<type>/<id>/" as ep7 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "ReviewListCreate" as v1
+        component "ReviewDetail" as v2
+        component "BookReviews" as v3
+        component "ReviewsByItem" as v4
+    }
+
+    map "Review" as model {
+        id => BigAutoField (PK)
+        customer_id => IntegerField
+        item_type => CharField(book|clothes)
+        item_id => IntegerField
+        book_id => IntegerField (legacy, optional)
+        rating => IntegerField
+        comment => TextField
+        created_at => DateTimeField
+    }
+
+    database "comment_rate_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+ep6 --> v3
+ep7 --> v4
+
+v1 --> model
+v2 --> model
+v3 --> model
+v4 --> model
+model --> db
+
+note right of model
+  customer_id -> Customer Service
+  item_id -> Book Service OR Clothes Service
+  (logical foreign keys)
+end note
+
+@enduml

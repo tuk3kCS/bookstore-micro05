@@ -4,9 +4,18 @@ from rest_framework import status
 from .models import Review
 from .serializers import ReviewSerializer
 
+def _backfill_item_fields(review: Review) -> None:
+    if review.item_id is None and review.book_id is not None:
+        review.item_type = "book"
+        review.item_id = review.book_id
+        review.save(update_fields=["item_type", "item_id"])
+
+
 class ReviewListCreate(APIView):
     def get(self, request):
         reviews = Review.objects.all()
+        for rv in reviews:
+            _backfill_item_fields(rv)
         serializer = ReviewSerializer(reviews, many=True)
         return Response(serializer.data)
 
@@ -48,6 +57,17 @@ class ReviewDetail(APIView):
 
 class ReviewsByBook(APIView):
     def get(self, request, book_id):
-        reviews = Review.objects.filter(book_id=book_id)
+        reviews = Review.objects.filter(item_type="book", item_id=book_id)
+        for rv in reviews:
+            _backfill_item_fields(rv)
+        serializer = ReviewSerializer(reviews, many=True)
+        return Response(serializer.data)
+
+
+class ReviewsByItem(APIView):
+    def get(self, request, item_type, item_id):
+        reviews = Review.objects.filter(item_type=item_type, item_id=item_id)
+        for rv in reviews:
+            _backfill_item_fields(rv)
         serializer = ReviewSerializer(reviews, many=True)
         return Response(serializer.data)

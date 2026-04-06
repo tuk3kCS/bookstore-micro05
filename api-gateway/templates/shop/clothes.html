@@ -1,0 +1,88 @@
+{% extends "shop/base.html" %}
+{% block title %}Browse Clothes - BookStore{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0"><i class="bi bi-bag me-2"></i>Browse Clothes</h3>
+    <a href="/books/" class="btn btn-sm btn-outline-shop"><i class="bi bi-journal-richtext me-1"></i>Browse Books</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold">Search</label>
+                <input class="form-control" name="q" value="{{ q }}" placeholder="Search by name or brand...">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Category</label>
+                <select class="form-select" name="catalog">
+                    <option value="">All</option>
+                    {% for c in catalogs %}
+                    <option value="{{ c.id }}" {% if catalog_filter|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Stock</label>
+                <select class="form-select" name="in_stock">
+                    <option value="">All</option>
+                    <option value="1" {% if in_stock == "1" %}selected{% endif %}>In stock</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Sort</label>
+                <select class="form-select" name="sort">
+                    <option value="">Relevance</option>
+                    <option value="newest" {% if sort_by == "newest" %}selected{% endif %}>Newest</option>
+                    <option value="name" {% if sort_by == "name" %}selected{% endif %}>Name</option>
+                    <option value="price_asc" {% if sort_by == "price_asc" %}selected{% endif %}>Price: Low to High</option>
+                    <option value="price_desc" {% if sort_by == "price_desc" %}selected{% endif %}>Price: High to Low</option>
+                </select>
+            </div>
+            <div class="col-12 d-flex gap-2 mt-2">
+                <button class="btn btn-shop" type="submit"><i class="bi bi-search me-1"></i>Apply</button>
+                <a class="btn btn-outline-shop" href="/clothes/"><i class="bi bi-x-circle me-1"></i>Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% for p in products %}
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="card h-100 card-hover" style="cursor:pointer;" onclick="window.location='/clothes/{{ p.id }}/'">
+            <div class="card-body d-flex flex-column">
+                <div class="text-center mb-3">
+                    <div class="bg-light rounded p-3 d-inline-block">
+                        <i class="bi bi-bag fs-1 text-muted"></i>
+                    </div>
+                </div>
+                <h6 class="card-title mb-1">{{ p.name }}</h6>
+                {% if p.brand %}<small class="text-muted mb-2">{{ p.brand }}</small>{% endif %}
+                {% if p.catalog_name %}<span class="badge bg-light text-dark border mb-2">{{ p.catalog_name }}</span>{% endif %}
+                <div class="mt-auto">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="price-tag">${{ p.min_price }}</span>
+                        {% if p.stock_total > 0 %}
+                        <span class="badge bg-success">In Stock</span>
+                        {% else %}
+                        <span class="badge bg-danger">Sold Out</span>
+                        {% endif %}
+                    </div>
+                    <span class="btn btn-outline-shop btn-sm w-100">
+                        <i class="bi bi-eye me-1"></i>View Details
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-muted py-5">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        No clothes available yet.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+

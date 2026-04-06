@@ -1,0 +1,107 @@
+@startuml System Architecture Overview
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam component {
+    BackgroundColor #E8F4FD
+    BorderColor #2196F3
+    FontColor #1565C0
+}
+skinparam database {
+    BackgroundColor #FFF3E0
+    BorderColor #FF9800
+    FontColor #E65100
+}
+skinparam node {
+    BackgroundColor #F3E5F5
+    BorderColor #9C27B0
+}
+skinparam rectangle {
+    BackgroundColor #E8F5E9
+    BorderColor #4CAF50
+}
+
+title Bookstore Microservices - System Architecture
+
+actor "Customer" as customer
+actor "Admin / Staff" as staff
+
+node "API Gateway\n:8000" as gateway {
+    component "Customer Portal\n(/)" as portal
+    component "Admin Dashboard\n(/dashboard/)" as dashboard
+}
+
+rectangle "Microservices Layer" {
+    component "Customer Service\n:8001" as cs
+    component "Book Service\n:8002" as bs
+    component "Cart Service\n:8003" as cart
+    component "Clothes Service\n:8012" as clothes
+    component "Staff Service\n:8004" as ss
+    component "Manager Service\n:8005" as ms
+    component "Catalog Service\n:8006" as cat
+    component "Order Service\n:8007" as os
+    component "Ship Service\n:8008" as ship
+    component "Pay Service\n:8009" as pay
+    component "Comment-Rate Service\n:8010" as cr
+    component "Recommender AI Service\n:8011" as rec
+}
+
+database "PostgreSQL" as db {
+    storage "customer_db" as cdb
+    storage "book_db" as bdb
+    storage "cart_db" as cartdb
+    storage "clothes_db" as clothesdb
+    storage "staff_db" as sdb
+    storage "manager_db" as mdb
+    storage "catalog_db" as catdb
+    storage "order_db" as odb
+    storage "ship_db" as shipdb
+    storage "pay_db" as paydb
+    storage "comment_rate_db" as crdb
+    storage "recommender_db" as recdb
+}
+
+customer --> portal
+staff --> dashboard
+
+gateway -down-> cs : REST
+gateway -down-> bs : REST
+gateway -down-> cart : REST
+gateway -down-> clothes : REST
+gateway -down-> ss : REST
+gateway -down-> ms : REST
+gateway -down-> cat : REST
+gateway -down-> os : REST
+gateway -down-> ship : REST
+gateway -down-> pay : REST
+gateway -down-> cr : REST
+gateway -down-> rec : REST
+
+cs --> cdb
+bs --> bdb
+cart --> cartdb
+clothes --> clothesdb
+ss --> sdb
+ms --> mdb
+cat --> catdb
+os --> odb
+ship --> shipdb
+pay --> paydb
+cr --> crdb
+rec --> recdb
+
+cs ..> cart : POST /carts/\n(on customer create)
+cart ..> bs : GET /books/{id}\n(validate book)
+cart ..> clothes : GET /variants/{id}\n(validate clothes variant)
+ss ..> bs : GET|POST /books/\n(manage books)
+os ..> pay : POST /payments/\n(on order create)
+os ..> ship : POST /shipments/\n(on order create)
+rec ..> bs : GET /books/
+rec ..> clothes : GET /products/, /variants/
+rec ..> os : GET /orders/
+rec ..> cr : GET /reviews/
+
+@enduml

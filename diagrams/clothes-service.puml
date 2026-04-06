@@ -1,0 +1,76 @@
+@startuml Clothes Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Clothes Service (:8012)
+
+package "clothes-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET|POST /products/" as ep1 #E8F5E9
+        rectangle "GET|PUT|DELETE /products/<pk>/" as ep2 #E8F5E9
+        rectangle "GET /products/<pk>/variants/" as ep3 #E8F5E9
+        rectangle "GET|POST /variants/" as ep4 #E8F5E9
+        rectangle "GET|PUT|DELETE /variants/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "ProductListCreate" as v1
+        component "ProductDetail" as v2
+        component "ProductVariants" as v3
+        component "VariantListCreate" as v4
+        component "VariantDetail" as v5
+    }
+
+    map "ClothesProduct" as product_model {
+        id => BigAutoField (PK)
+        name => CharField(255)
+        brand => CharField(255)
+        description => TextField
+        catalog_id => IntegerField (nullable)
+        created_at => DateTimeField
+    }
+
+    map "ClothesVariant" as variant_model {
+        id => BigAutoField (PK)
+        product => ForeignKey(ClothesProduct)
+        sku => CharField(64, unique)
+        size => CharField(32)
+        color => CharField(64)
+        price => DecimalField(10,2)
+        stock => IntegerField
+    }
+
+    database "clothes_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v2
+ep3 --> v3
+ep4 --> v4
+ep5 --> v5
+
+v1 --> product_model
+v2 --> product_model
+v3 --> variant_model
+v4 --> variant_model
+v5 --> variant_model
+
+product_model --> db
+variant_model --> db
+product_model --> variant_model : 1..*
+
+note right of product_model
+  catalog_id references Catalog Service
+  (logical foreign key)
+end note
+
+@enduml
+

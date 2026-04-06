@@ -1,0 +1,61 @@
+@startuml Staff Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Staff Service (:8004)
+
+package "staff-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /staffs/" as ep1 #E8F5E9
+        rectangle "POST /staffs/" as ep2 #E8F5E9
+        rectangle "POST /staffs/login/" as ep3 #E8F5E9
+        rectangle "GET /staffs/<pk>/" as ep4 #E8F5E9
+        rectangle "PUT /staffs/<pk>/" as ep5 #E8F5E9
+        rectangle "DELETE /staffs/<pk>/" as ep6 #E8F5E9
+        rectangle "GET|POST /staffs/books/" as ep7 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "StaffListCreate" as v1
+        component "StaffLogin" as v2
+        component "StaffDetail" as v3
+        component "StaffBookList" as v4
+    }
+
+    map "Staff" as model {
+        id => BigAutoField (PK)
+        name => CharField(255)
+        email => EmailField (unique)
+        position => CharField(255)
+        password => CharField(128)
+    }
+
+    database "staff_db\n(PostgreSQL)" as db
+}
+
+component "Book Service" as book_svc #FFF3E0
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v3
+ep5 --> v3
+ep6 --> v3
+ep7 --> v4
+
+v1 --> model
+v2 --> model
+v3 --> model
+model --> db
+
+v4 ..> book_svc : GET|POST /books/\n(proxy book management)
+
+@enduml

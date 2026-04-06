@@ -1,0 +1,62 @@
+@startuml Customer Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Customer Service (:8001)
+
+package "customer-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /customers/" as ep1 #E8F5E9
+        rectangle "POST /customers/" as ep2 #E8F5E9
+        rectangle "POST /customers/login/" as ep3 #E8F5E9
+        rectangle "GET /customers/<pk>/" as ep4 #E8F5E9
+        rectangle "PUT /customers/<pk>/" as ep5 #E8F5E9
+        rectangle "DELETE /customers/<pk>/" as ep6 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "CustomerListCreate" as v1
+        component "CustomerLogin" as v2
+        component "CustomerDetail" as v3
+    }
+
+    map "Customer" as model {
+        id => BigAutoField (PK)
+        name => CharField(255)
+        email => EmailField (unique)
+        password => CharField(128)
+    }
+
+    database "customer_db\n(PostgreSQL)" as db
+}
+
+component "Cart Service" as cart_svc #FFF3E0
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v3
+ep5 --> v3
+ep6 --> v3
+
+v1 --> model
+v2 --> model
+v3 --> model
+model --> db
+
+v1 ..> cart_svc : POST /carts/\n(auto-create cart\non new customer)
+
+note right of v2
+  Validates email + password
+  using check_password()
+end note
+
+@enduml

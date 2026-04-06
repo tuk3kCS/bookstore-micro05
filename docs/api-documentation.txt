@@ -1,0 +1,338 @@
+BOOKSTORE MICROSERVICES - API DOCUMENTATION
+
+
+OVERVIEW
+
+All services communicate via REST API using JSON (Content-Type: application/json).
+Database: PostgreSQL 15 | User: postgres | Password: postgres | Host: db (Docker)
+
+Service Name	Port	Database
+API Gateway	:8000	SQLite (sessions)
+Customer Service	:8001	customer_db
+Book Service	:8002	book_db
+Clothes Service	:8012	clothes_db
+Cart Service	:8003	cart_db
+Staff Service	:8004	staff_db
+Manager Service	:8005	manager_db
+Catalog Service	:8006	catalog_db
+Order Service	:8007	order_db
+Ship Service	:8008	ship_db
+Pay Service	:8009	pay_db
+Comment-Rate Service	:8010	comment_rate_db
+Recommender AI Service	:8011	recommender_db
+
+
+1. CUSTOMER SERVICE (:8001)
+
+Model: Customer
+	id - Integer (PK, auto)
+	name - String (max 255)
+	email - String (unique)
+	password - String (write-only, hashed)
+
+Endpoints:
+	GET /customers/ - List all customers
+	POST /customers/ - Create customer. Body: { name, email, password }. Side effect: auto-creates Cart in Cart Service.
+	POST /customers/login/ - Customer login. Body: { email, password }. Returns customer object or 400.
+	GET /customers/{id}/ - Retrieve customer
+	PUT /customers/{id}/ - Update customer (partial supported). Password is re-hashed if included.
+	DELETE /customers/{id}/ - Delete customer
+
+
+2. BOOK SERVICE (:8002)
+
+Model: Book
+	id - Integer (PK, auto)
+	title - String (max 255)
+	author - String (max 255)
+	price - Decimal (10, 2)
+	stock - Integer
+	catalog_id - Integer (nullable, logical FK to Catalog Service)
+
+Endpoints:
+	GET /books/ - List all books
+	POST /books/ - Create book. Body: { title, author, price, stock, catalog_id }
+	GET /books/{id}/ - Retrieve book
+	PUT /books/{id}/ - Update book (partial supported)
+	DELETE /books/{id}/ - Delete book
+
+
+3. CLOTHES SERVICE (:8012)
+
+Models:
+  ClothesProduct
+	id - Integer (PK, auto)
+	name - String (max 255)
+	brand - String (optional)
+	description - Text (optional)
+	catalog_id - Integer (nullable, logical FK to Catalog Service)
+	created_at - DateTime (auto)
+
+  ClothesVariant
+	id - Integer (PK, auto)
+	product - ForeignKey to ClothesProduct
+	sku - String (unique, max 64)
+	size - String (optional)
+	color - String (optional)
+	price - Decimal (10, 2)
+	stock - Integer
+
+Endpoints:
+	GET /products/ - List all clothes products
+	POST /products/ - Create product. Body: { name, brand, description, catalog_id }
+	GET /products/{id}/ - Retrieve product
+	PUT /products/{id}/ - Update product (partial supported)
+	DELETE /products/{id}/ - Delete product
+
+	GET /variants/ - List all variants
+	POST /variants/ - Create variant. Body: { product, sku, size, color, price, stock }
+	GET /variants/{id}/ - Retrieve variant
+	PUT /variants/{id}/ - Update variant (partial supported)
+	DELETE /variants/{id}/ - Delete variant
+
+	GET /products/{id}/variants/ - List variants for a product
+
+
+4. CART SERVICE (:8003)
+
+Model: Cart
+	id - Integer (PK, auto)
+	customer_id - Integer
+
+Model: CartItem
+	id - Integer (PK, auto)
+	cart - ForeignKey to Cart
+	item_type - String (book | clothes)
+	item_id - Integer (book.id or clothes_variant.id)
+	book_id - Integer (legacy, optional)
+	quantity - Integer
+
+Endpoints:
+	POST /carts/ - Create cart. Body: { customer_id }
+	GET /carts/{customer_id}/ - Get cart items by customer
+	GET /carts/info/{customer_id}/ - Get cart object (id, customer_id), even if empty
+	POST /cart-items/ - Add item.
+		- Book (legacy): Body { cart, book_id, quantity }
+		- Generic: Body { cart, item_type, item_id, quantity }
+		Validates item via Book Service (book) or Clothes Service (clothes variant).
+	PUT /cart-items/{id}/ - Update quantity. Body: { quantity }
+	DELETE /cart-items/{id}/ - Remove item
+
+
+5. STAFF SERVICE (:8004)
+
+Model: Staff
+	id - Integer (PK, auto)
+	name - String (max 255)
+	email - String (unique)
+	position - String (max 255)
+	password - String (write-only, hashed)
+
+Endpoints:
+	GET /staffs/ - List all staff
+	POST /staffs/ - Create staff. Body: { name, email, position, password }
+	POST /staffs/login/ - Staff login. Body: { email, password }
+	GET /staffs/{id}/ - Retrieve staff
+	PUT /staffs/{id}/ - Update staff (partial supported)
+	DELETE /staffs/{id}/ - Delete staff
+	GET /staffs/books/ - Proxy: list books from Book Service
+	POST /staffs/books/ - Proxy: create book via Book Service
+
+
+6. MANAGER SERVICE (:8005)
+
+Model: Manager
+	id - Integer (PK, auto)
+	name - String (max 255)
+	email - String (unique)
+	department - String (max 255)
+
+Endpoints:
+	GET /managers/ - List all managers
+	POST /managers/ - Create manager. Body: { name, email, department }
+	GET /managers/{id}/ - Retrieve manager
+	PUT /managers/{id}/ - Update manager (partial supported)
+	DELETE /managers/{id}/ - Delete manager
+
+
+7. CATALOG SERVICE (:8006)
+
+Model: Catalog
+	id - Integer (PK, auto)
+	name - String (max 255)
+	description - Text (optional)
+
+Endpoints:
+	GET /catalogs/ - List all catalogs
+	POST /catalogs/ - Create catalog. Body: { name, description }
+	GET /catalogs/{id}/ - Retrieve catalog
+	PUT /catalogs/{id}/ - Update catalog (partial supported)
+	DELETE /catalogs/{id}/ - Delete catalog
+
+
+8. ORDER SERVICE (:8007)
+
+Model: Order
+	id - Integer (PK, auto)
+	customer_id - Integer
+	status - String (pending, confirmed, cancelled, delivered)
+	total_amount - Decimal (10, 2)
+	created_at - DateTime (auto)
+
+Model: OrderItem
+	id - Integer (PK, auto)
+	order - ForeignKey to Order
+	item_type - String (book | clothes)
+	item_id - Integer (book.id or clothes_variant.id)
+	book_id - Integer (legacy, optional)
+	quantity - Integer
+	price - Decimal (10, 2)
+
+Endpoints:
+	GET /orders/ - List all orders (includes nested items)
+	POST /orders/ - Create order. Body: { customer_id, status, total_amount }. Side effects: auto-creates Payment in Pay Service and Shipment in Ship Service.
+	GET /orders/{id}/ - Retrieve order (with items)
+	PUT /orders/{id}/ - Update order (partial supported)
+	DELETE /orders/{id}/ - Delete order
+
+
+9. SHIP SERVICE (:8008)
+
+Model: Shipment
+	id - Integer (PK, auto)
+	order_id - Integer
+	address - Text
+	status - String (pending, shipped, delivered)
+	tracking_number - String (max 255, optional)
+	created_at - DateTime (auto)
+
+Endpoints:
+	GET /shipments/ - List all shipments
+	POST /shipments/ - Create shipment. Body: { order_id, address, status }
+	GET /shipments/{id}/ - Retrieve shipment
+	PUT /shipments/{id}/ - Update shipment (partial supported)
+	DELETE /shipments/{id}/ - Delete shipment
+
+
+10. PAY SERVICE (:8009)
+
+Model: Payment
+	id - Integer (PK, auto)
+	order_id - Integer
+	amount - Decimal (10, 2)
+	method - String (credit_card, paypal, bank_transfer, cod)
+	status - String (pending, completed, failed)
+	created_at - DateTime (auto)
+
+Endpoints:
+	GET /payments/ - List all payments
+	POST /payments/ - Create payment. Body: { order_id, amount, method, status }
+	GET /payments/{id}/ - Retrieve payment
+	PUT /payments/{id}/ - Update payment (partial supported)
+	DELETE /payments/{id}/ - Delete payment
+
+
+11. COMMENT-RATE SERVICE (:8010)
+
+Model: Review
+	id - Integer (PK, auto)
+	customer_id - Integer (logical FK to Customer Service)
+	item_type - String (book | clothes)
+	item_id - Integer (book.id or clothes_variant.id)
+	book_id - Integer (legacy, optional)
+	rating - Integer (1-5)
+	comment - Text (optional)
+	created_at - DateTime (auto)
+
+Endpoints:
+	GET /reviews/ - List all reviews
+	POST /reviews/ - Create review.
+		- Book (legacy): Body { customer_id, book_id, rating, comment }
+		- Generic: Body { customer_id, item_type, item_id, rating, comment }
+	GET /reviews/{id}/ - Retrieve review
+	PUT /reviews/{id}/ - Update review (partial supported)
+	DELETE /reviews/{id}/ - Delete review
+	GET /reviews/book/{book_id}/ - List reviews for a specific book (legacy)
+	GET /reviews/item/{item_type}/{item_id}/ - List reviews for a specific item
+
+
+12. RECOMMENDER AI SERVICE (:8011)
+
+Model: Recommendation
+	id - Integer (PK, auto)
+	customer_id - Integer
+	item_type - String (book | clothes)
+	item_id - Integer (book.id or clothes_variant.id)
+	book_id - Integer (legacy, optional)
+	score - Float
+	reason - String (max 255, optional)
+
+Endpoints:
+	GET /recommendations/ - List all recommendations
+	POST /recommendations/ - Create recommendation manually.
+		- Book (legacy): Body { customer_id, book_id, score, reason }
+		- Generic: Body { customer_id, item_type, item_id, score, reason }
+	GET /recommendations/{customer_id}/ - Get recommendations for a customer
+	GET /recommendations/detail/{id}/ - Retrieve recommendation
+	PUT /recommendations/detail/{id}/ - Update recommendation (partial supported)
+	DELETE /recommendations/detail/{id}/ - Delete recommendation
+	POST /recommendations/generate/{customer_id}/ - Generate AI recommendations. No body required. Returns mixed books and clothes variants. Fetches data from Book, Clothes, Order, and Comment-Rate services. Replaces old recommendations.
+
+
+INTER-SERVICE COMMUNICATION
+
+Customer Service -> Cart Service: POST /carts/ (auto-create cart on customer registration)
+Cart Service -> Book Service: GET /books/{id}/ (validate book when adding item)
+Cart Service -> Clothes Service: GET /variants/{id}/ (validate clothes variant when adding item)
+Staff Service -> Book Service: GET|POST /books/ (proxy book management)
+Order Service -> Pay Service: POST /payments/ (auto-create payment on order)
+Order Service -> Ship Service: POST /shipments/ (auto-create shipment on order)
+Recommender AI -> Book Service: GET /books/ (fetch book catalog)
+Recommender AI -> Clothes Service: GET /products/, GET /variants/ (fetch apparel catalog)
+Recommender AI -> Order Service: GET /orders/ (fetch purchase history)
+Recommender AI -> Comment-Rate Service: GET /reviews/ (fetch user ratings)
+API Gateway -> All 12 services: REST (aggregation and proxy)
+
+
+API GATEWAY ROUTES (:8000)
+
+Customer Portal (session-based auth: customer_id, customer_name, customer_email):
+	/ - Home page (featured books, categories, recommendations)
+	/login/ - Customer login
+	/register/ - Customer registration
+	/logout/ - Customer logout
+	/books/ - Browse books (search, filter, sort)
+	/books/{id}/ - Book detail (view info, add to cart, write review)
+	/clothes/ - Browse clothes (search, filter, sort)
+	/clothes/{id}/ - Clothes product detail (choose variant, add to cart, write review)
+	/cart/ - Shopping cart (update quantity, remove items)
+	/checkout/ - Checkout and place order
+	/orders/ - My orders (view, cancel order, change payment method)
+	/reviews/ - My reviews (view, write new review)
+	/account/ - Account management (edit profile, change password)
+
+Admin/Staff Dashboard (session-based auth: staff_id, staff_name, staff_email):
+	/dashboard/login/ - Staff login
+	/dashboard/logout/ - Staff logout
+	/dashboard/ - Dashboard home
+	/dashboard/books/ - Manage books (CRUD)
+	/dashboard/clothes/products/ - Manage clothes products (CRUD)
+	/dashboard/clothes/variants/ - Manage clothes variants (CRUD)
+	/dashboard/customers/ - Manage customers (CRUD)
+	/dashboard/staffs/ - Manage staff (CRUD)
+	/dashboard/managers/ - Manage managers (CRUD)
+	/dashboard/catalogs/ - Manage catalogs (CRUD)
+	/dashboard/orders/ - Manage orders (CRUD)
+	/dashboard/shipments/ - Manage shipments (CRUD)
+	/dashboard/payments/ - Manage payments (CRUD)
+	/dashboard/reviews/ - Manage reviews (view, delete only)
+
+
+HTTP STATUS CODES
+
+200 OK - Successful GET, PUT, or login
+201 Created - Successful POST (resource created)
+204 No Content - Successful DELETE
+400 Bad Request - Validation error or invalid credentials
+404 Not Found - Resource does not exist
+500 Internal Server Error - Unexpected server error

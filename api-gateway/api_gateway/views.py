@@ -13,6 +13,7 @@ COMMENT_RATE_SERVICE_URL = "http://comment-rate-service:8000"
 RECOMMENDER_SERVICE_URL = "http://recommender-ai-service:8000"
 CATALOG_SERVICE_URL = "http://catalog-service:8000"
 MANAGER_SERVICE_URL = "http://manager-service:8000"
+CLOTHES_SERVICE_URL = "http://clothes-service:8000"
 
 
 def _safe_get(url):
@@ -140,6 +141,113 @@ def book_list(request):
     books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
     return render(request, "books.html", {"books": books, "catalogs": catalogs})
+
+
+# ───────── Clothes Products ─────────
+
+def clothes_product_list(request):
+    redir = _require_staff(request)
+    if redir:
+        return redir
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create":
+            data = {
+                "name": request.POST.get("name", "").strip(),
+                "brand": request.POST.get("brand", "").strip(),
+                "description": request.POST.get("description", "").strip(),
+            }
+            catalog_id = request.POST.get("catalog_id")
+            if catalog_id:
+                data["catalog_id"] = int(catalog_id)
+            r = _safe_post(f"{CLOTHES_SERVICE_URL}/products/", data)
+            if r and r.status_code == 201:
+                messages.success(request, f"Clothes product '{data['name']}' added.")
+            else:
+                messages.error(request, "Failed to add clothes product.")
+        elif action == "edit":
+            pk = request.POST.get("pk")
+            data = {
+                "name": request.POST.get("name", "").strip(),
+                "brand": request.POST.get("brand", "").strip(),
+                "description": request.POST.get("description", "").strip(),
+            }
+            catalog_id = request.POST.get("catalog_id")
+            data["catalog_id"] = int(catalog_id) if catalog_id else None
+            r = _safe_put(f"{CLOTHES_SERVICE_URL}/products/{pk}/", data)
+            if r and r.status_code == 200:
+                messages.success(request, f"Product #{pk} updated.")
+            else:
+                messages.error(request, "Failed to update clothes product.")
+        elif action == "delete":
+            pk = request.POST.get("pk")
+            r = _safe_delete(f"{CLOTHES_SERVICE_URL}/products/{pk}/")
+            if r and r.status_code == 204:
+                messages.success(request, f"Product #{pk} deleted.")
+            else:
+                messages.error(request, "Failed to delete clothes product.")
+        return redirect("clothes_product_list")
+
+    products = _safe_get(f"{CLOTHES_SERVICE_URL}/products/")
+    catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
+    return render(request, "clothes_products.html", {"products": products, "catalogs": catalogs})
+
+
+# ───────── Clothes Variants ─────────
+
+def clothes_variant_list(request):
+    redir = _require_staff(request)
+    if redir:
+        return redir
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create":
+            data = {
+                "product": int(request.POST.get("product")),
+                "sku": request.POST.get("sku", "").strip(),
+                "size": request.POST.get("size", "").strip(),
+                "color": request.POST.get("color", "").strip(),
+                "price": request.POST.get("price"),
+                "stock": int(request.POST.get("stock", 0)),
+            }
+            r = _safe_post(f"{CLOTHES_SERVICE_URL}/variants/", data)
+            if r and r.status_code == 201:
+                messages.success(request, f"Variant '{data['sku']}' added.")
+            else:
+                messages.error(request, "Failed to add variant.")
+        elif action == "edit":
+            pk = request.POST.get("pk")
+            data = {
+                "product": int(request.POST.get("product")),
+                "sku": request.POST.get("sku", "").strip(),
+                "size": request.POST.get("size", "").strip(),
+                "color": request.POST.get("color", "").strip(),
+                "price": request.POST.get("price"),
+                "stock": int(request.POST.get("stock", 0)),
+            }
+            r = _safe_put(f"{CLOTHES_SERVICE_URL}/variants/{pk}/", data)
+            if r and r.status_code == 200:
+                messages.success(request, f"Variant #{pk} updated.")
+            else:
+                messages.error(request, "Failed to update variant.")
+        elif action == "delete":
+            pk = request.POST.get("pk")
+            r = _safe_delete(f"{CLOTHES_SERVICE_URL}/variants/{pk}/")
+            if r and r.status_code == 204:
+                messages.success(request, f"Variant #{pk} deleted.")
+            else:
+                messages.error(request, "Failed to delete variant.")
+        return redirect("clothes_variant_list")
+
+    variants = _safe_get(f"{CLOTHES_SERVICE_URL}/variants/")
+    products = _safe_get(f"{CLOTHES_SERVICE_URL}/products/")
+    products_map = {p["id"]: p for p in products}
+    for v in variants:
+        p = products_map.get(v.get("product"))
+        v["product_name"] = p.get("name") if p else f"Product #{v.get('product')}"
+    return render(request, "clothes_variants.html", {"variants": variants, "products": products})
 
 
 # ───────── Customers ─────────

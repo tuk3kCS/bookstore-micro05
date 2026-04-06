@@ -14,7 +14,7 @@
                 <table class="table mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Book</th>
+                            <th>Item</th>
                             <th class="text-center">Qty</th>
                             <th class="text-end">Unit Price</th>
                             <th class="text-end">Subtotal</th>
@@ -23,9 +23,9 @@
                     <tbody>
                         {% for item in items %}
                         <tr>
-                            <td><a href="/books/{{ item.book_id }}/" class="text-decoration-none">{{ item.book_title|default:"Book" }}</a></td>
+                            <td><a href="{{ item.item_url }}" class="text-decoration-none">{{ item.item_title|default:"Item" }}</a></td>
                             <td class="text-center">{{ item.quantity }}</td>
-                            <td class="text-end">${{ item.book_price|default:"0" }}</td>
+                            <td class="text-end">${{ item.unit_price|default:"0" }}</td>
                             <td class="text-end fw-bold">${{ item.subtotal|default:"0" }}</td>
                         </tr>
                         {% empty %}
@@ -57,9 +57,10 @@
                 <form method="post">
                     {% csrf_token %}
                     {% for item in items %}
-                    <input type="hidden" name="item_book_id" value="{{ item.book_id }}">
+                    <input type="hidden" name="item_type" value="{{ item.item_type }}">
+                    <input type="hidden" name="item_id" value="{{ item.item_id }}">
                     <input type="hidden" name="item_quantity" value="{{ item.quantity }}">
-                    <input type="hidden" name="item_price" value="{{ item.book_price|default:'0' }}">
+                    <input type="hidden" name="item_price" value="{{ item.unit_price|default:'0' }}">
                     {% endfor %}
 
                     <div class="mb-3">

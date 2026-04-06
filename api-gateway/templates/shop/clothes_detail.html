@@ -1,0 +1,225 @@
+{% extends "shop/base.html" %}
+{% block title %}{{ product.name }} - BookStore{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="/clothes/" class="text-decoration-none">Clothes</a></li>
+        <li class="breadcrumb-item active">{{ product.name }}</li>
+    </ol>
+</nav>
+
+<div class="row g-4 mb-5">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center py-5" style="background: linear-gradient(135deg, #f0e6ff 0%, #e8daf5 100%); border-radius: 0.75rem;">
+                <i class="bi bi-bag" style="font-size: 6rem; color: #6f42c1;"></i>
+                <div class="mt-3">
+                    {% if variants %}
+                    {% if variants|length > 0 %}
+                    <span class="badge bg-secondary fs-6 px-3 py-2"><i class="bi bi-collection me-1"></i>{{ variants|length }} variants</span>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <h2 class="fw-bold mb-1">{{ product.name }}</h2>
+        {% if product.brand %}<p class="text-muted fs-5 mb-2">{{ product.brand }}</p>{% endif %}
+        {% if catalog_name %}
+        <div class="mb-3">
+            <a href="/clothes/?catalog={{ product.catalog_id }}" class="badge text-decoration-none" style="background:#6f42c1; font-size: 0.85rem;">
+                <i class="bi bi-folder me-1"></i>{{ catalog_name }}
+            </a>
+        </div>
+        {% endif %}
+
+        {% if product.description %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small mb-2">Description</h6>
+                <p class="mb-0 text-muted">{{ product.description }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small mb-3">Choose Variant</h6>
+
+                {% if variants %}
+                <form method="post" class="row g-3 align-items-end">
+                    {% csrf_token %}
+                    <input type="hidden" name="cart_id" value="{{ cart_id|default:'' }}">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Variant</label>
+                        <select class="form-select" name="variant_id" required>
+                            <option value="">Select...</option>
+                            {% for v in variants %}
+                            <option value="{{ v.id }}">
+                                SKU {{ v.sku }}{% if v.size %} · {{ v.size }}{% endif %}{% if v.color %} · {{ v.color }}{% endif %} — ${{ v.price }} (stock {{ v.stock }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Quantity</label>
+                        <input type="number" name="quantity" value="1" min="1" class="form-control">
+                    </div>
+                    <div class="col-md-3 d-grid">
+                        {% if customer %}
+                        <button type="submit" name="action" value="add_to_cart" class="btn btn-shop btn-lg">
+                            <i class="bi bi-cart-plus me-2"></i>Add to Cart
+                        </button>
+                        {% else %}
+                        <a href="/login/" class="btn btn-outline-shop btn-lg"><i class="bi bi-box-arrow-in-right me-2"></i>Sign in to purchase</a>
+                        {% endif %}
+                    </div>
+                </form>
+                {% else %}
+                <p class="text-muted mb-0">No variants available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-{% if customer %}7{% else %}12{% endif %}">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0"><i class="bi bi-chat-quote me-2"></i>Customer Reviews</h4>
+            <span class="badge bg-secondary">{{ reviews|length }}</span>
+        </div>
+
+        {% if reviews %}
+        {% for review in reviews %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <strong>{{ review.customer_name }}</strong>
+                        <div class="mt-1">
+                            {% for i in "12345" %}
+                                {% if forloop.counter <= review.rating %}
+                                <i class="bi bi-star-fill star-filled"></i>
+                                {% else %}
+                                <i class="bi bi-star star-empty"></i>
+                                {% endif %}
+                            {% endfor %}
+                            <span class="ms-1 text-muted small">{{ review.rating }}/5</span>
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ review.created_at|truncatechars:10 }}</small>
+                </div>
+                {% if review.comment %}
+                <p class="mb-0 mt-2">{{ review.comment }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center py-4 text-muted">
+                <i class="bi bi-chat-square-text fs-2 d-block mb-2"></i>
+                <p class="mb-0">No reviews yet.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if customer %}
+    <div class="col-lg-5">
+        <h4 class="mb-3">Write a Review</h4>
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="review">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Variant</label>
+                        <select class="form-select" name="variant_id" required>
+                            <option value="">Select...</option>
+                            {% for v in variants %}
+                            <option value="{{ v.id }}">SKU {{ v.sku }}{% if v.size %} · {{ v.size }}{% endif %}{% if v.color %} · {{ v.color }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rating</label>
+                        <div class="d-flex gap-3">
+                            {% for val in "54321" %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="rating" value="{{ val }}" id="star{{ val }}" {% if val == "5" %}checked{% endif %}>
+                                <label class="form-check-label" for="star{{ val }}">
+                                    {{ val }} <i class="bi bi-star-fill star-filled"></i>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Your Review</label>
+                        <textarea name="comment" class="form-control" rows="4" placeholder="Share your thoughts..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-shop w-100">
+                        <i class="bi bi-send me-2"></i>Submit Review
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if recommendations %}
+<hr class="my-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-stars me-2" style="color:#6f42c1"></i>You Might Also Like</h4>
+    <span class="badge bg-light text-dark border"><i class="bi bi-robot me-1"></i>AI Powered</span>
+</div>
+<div class="row g-4">
+    {% for rec in recommendations %}
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="card h-100 card-hover" style="cursor:pointer;" onclick="window.location='{{ rec.item_url }}'">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge" style="background:#6f42c1; font-size:0.75rem">
+                        <i class="bi bi-stars me-1"></i>{{ rec.score }}% match
+                    </span>
+                    {% if rec.catalog_name %}
+                    <span class="badge bg-light text-dark border" style="font-size:0.65rem">{{ rec.catalog_name }}</span>
+                    {% endif %}
+                </div>
+                <div class="text-center my-2">
+                    <div class="bg-light rounded p-3 d-inline-block">
+                        <i class="bi {{ rec.item_icon|default:'bi-bag' }} fs-1 text-muted"></i>
+                    </div>
+                </div>
+                <h6 class="card-title mb-1">{{ rec.item_title }}</h6>
+                {% if rec.item_subtitle %}
+                <small class="text-muted mb-1">{{ rec.item_subtitle }}</small>
+                {% endif %}
+                {% if rec.reason %}
+                <small class="text-muted d-block mb-2"><i class="bi bi-robot me-1" style="color:#6f42c1"></i>{{ rec.reason|truncatechars:60 }}</small>
+                {% endif %}
+                <div class="mt-auto">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="price-tag">${{ rec.item_price }}</span>
+                        {% if rec.item_stock > 0 %}
+                        <span class="badge bg-success">In Stock</span>
+                        {% else %}
+                        <span class="badge bg-danger">Sold Out</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+

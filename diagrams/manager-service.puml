@@ -1,0 +1,54 @@
+@startuml Manager Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Manager Service (:8005)
+
+package "manager-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /managers/" as ep1 #E8F5E9
+        rectangle "POST /managers/" as ep2 #E8F5E9
+        rectangle "GET /managers/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /managers/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /managers/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "ManagerListCreate" as v1
+        component "ManagerDetail" as v2
+    }
+
+    map "Manager" as model {
+        id => BigAutoField (PK)
+        name => CharField(255)
+        email => EmailField (unique)
+        department => CharField(255)
+    }
+
+    database "manager_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+
+v1 --> model
+v2 --> model
+model --> db
+
+note right of model
+  Standalone service.
+  No inter-service dependencies.
+end note
+
+@enduml

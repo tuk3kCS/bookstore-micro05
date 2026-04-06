@@ -1,0 +1,56 @@
+@startuml Book Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Book Service (:8002)
+
+package "book-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /books/" as ep1 #E8F5E9
+        rectangle "POST /books/" as ep2 #E8F5E9
+        rectangle "GET /books/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /books/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /books/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "BookListCreate" as v1
+        component "BookDetail" as v2
+    }
+
+    map "Book" as model {
+        id => BigAutoField (PK)
+        title => CharField(255)
+        author => CharField(255)
+        price => DecimalField(10,2)
+        stock => IntegerField
+        catalog_id => IntegerField (nullable)
+    }
+
+    database "book_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+
+v1 --> model
+v2 --> model
+model --> db
+
+note right of model
+  catalog_id references
+  Catalog Service (logical FK)
+end note
+
+@enduml

@@ -1,0 +1,83 @@
+@startuml Recommender AI Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Recommender AI Service (:8011)
+
+package "recommender-ai-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /recommendations/" as ep1 #E8F5E9
+        rectangle "POST /recommendations/" as ep2 #E8F5E9
+        rectangle "GET /recommendations/<customer_id>/" as ep3 #E8F5E9
+        rectangle "GET /recommendations/detail/<pk>/" as ep4 #E8F5E9
+        rectangle "PUT /recommendations/detail/<pk>/" as ep5 #E8F5E9
+        rectangle "DELETE /recommendations/detail/<pk>/" as ep6 #E8F5E9
+        rectangle "POST /recommendations/generate/<customer_id>/" as ep7 #FFF9C4
+    }
+
+    package "Views" as views {
+        component "RecommendationListCreate" as v1
+        component "CustomerRecommendations" as v2
+        component "RecommendationDetail" as v3
+        component "GenerateRecommendations" as v4
+    }
+
+    component "AI Engine\n(engine.py)" as engine #FCE4EC
+
+    map "Recommendation" as model {
+        id => BigAutoField (PK)
+        customer_id => IntegerField
+        item_type => CharField(book|clothes)
+        item_id => IntegerField
+        book_id => IntegerField (legacy, optional)
+        score => FloatField
+        reason => CharField(255)
+    }
+
+    database "recommender_db\n(PostgreSQL)" as db
+}
+
+component "Book Service" as book_svc #FFF3E0
+component "Clothes Service" as clothes_svc #FFF3E0
+component "Order Service" as order_svc #FFF3E0
+component "Comment-Rate Service" as cr_svc #FFF3E0
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v3
+ep5 --> v3
+ep6 --> v3
+ep7 --> v4
+
+v1 --> model
+v2 --> model
+v3 --> model
+v4 --> engine
+engine --> model
+
+model --> db
+
+engine ..> book_svc : GET /books/\n(fetch all books)
+engine ..> clothes_svc : GET /products/, /variants/\n(fetch clothes catalog)
+engine ..> order_svc : GET /orders/\n(purchase history)
+engine ..> cr_svc : GET /reviews/\n(user ratings)
+
+note bottom of engine
+  Hybrid recommendation:
+  - Content-based filtering
+  - Collaborative filtering
+  - Popularity scoring
+  - Recency & stock awareness
+  Uses numpy for computation
+end note
+
+@enduml

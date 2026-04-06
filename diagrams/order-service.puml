@@ -1,0 +1,71 @@
+@startuml Order Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Order Service (:8007)
+
+package "order-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /orders/" as ep1 #E8F5E9
+        rectangle "POST /orders/" as ep2 #E8F5E9
+        rectangle "GET /orders/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /orders/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /orders/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "OrderListCreate" as v1
+        component "OrderDetail" as v2
+    }
+
+    map "Order" as order_model {
+        id => BigAutoField (PK)
+        customer_id => IntegerField
+        status => CharField(50)
+        total_amount => DecimalField(10,2)
+        created_at => DateTimeField
+    }
+
+    map "OrderItem" as item_model {
+        id => BigAutoField (PK)
+        order => ForeignKey(Order)
+        item_type => CharField(book|clothes)
+        item_id => IntegerField
+        book_id => IntegerField (legacy, optional)
+        quantity => IntegerField
+        price => DecimalField(10,2)
+    }
+
+    database "order_db\n(PostgreSQL)" as db
+}
+
+component "Pay Service" as pay_svc #FFF3E0
+component "Ship Service" as ship_svc #FFF3E0
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+
+v1 --> order_model
+v1 --> item_model
+v2 --> order_model
+v2 --> item_model
+
+order_model --> db
+item_model --> db
+order_model --> item_model : 1..*
+
+v1 ..> pay_svc : POST /payments/\n(auto-create payment)
+v1 ..> ship_svc : POST /shipments/\n(auto-create shipment)
+
+@enduml

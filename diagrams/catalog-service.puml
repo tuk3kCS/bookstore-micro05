@@ -1,0 +1,53 @@
+@startuml Catalog Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Catalog Service (:8006)
+
+package "catalog-service" {
+
+    package "API Endpoints" as api {
+        rectangle "GET /catalogs/" as ep1 #E8F5E9
+        rectangle "POST /catalogs/" as ep2 #E8F5E9
+        rectangle "GET /catalogs/<pk>/" as ep3 #E8F5E9
+        rectangle "PUT /catalogs/<pk>/" as ep4 #E8F5E9
+        rectangle "DELETE /catalogs/<pk>/" as ep5 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "CatalogListCreate" as v1
+        component "CatalogDetail" as v2
+    }
+
+    map "Catalog" as model {
+        id => BigAutoField (PK)
+        name => CharField(255)
+        description => TextField
+    }
+
+    database "catalog_db\n(PostgreSQL)" as db
+}
+
+ep1 --> v1
+ep2 --> v1
+ep3 --> v2
+ep4 --> v2
+ep5 --> v2
+
+v1 --> model
+v2 --> model
+model --> db
+
+note right of model
+  Referenced by Book.catalog_id
+  in Book Service (logical FK).
+end note
+
+@enduml

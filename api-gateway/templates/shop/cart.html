@@ -11,16 +11,22 @@
 </div>
 {% endif %}
 
+<div id="cart-toast" class="position-fixed top-0 end-0 p-3" style="z-index:1080; display:none;">
+    <div class="alert alert-success shadow-sm mb-0">
+        <i class="bi bi-check-circle me-1"></i><span id="cart-toast-msg"></span>
+    </div>
+</div>
+
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card">
             <div class="card-body p-0">
                 {% if items %}
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
+                    <table class="table table-hover mb-0 align-middle" id="cart-table">
                         <thead class="table-light">
                             <tr>
-                                <th>Book</th>
+                                <th>Item</th>
                                 <th class="text-center" style="width:150px">Quantity</th>
                                 <th class="text-end">Unit Price</th>
                                 <th class="text-end">Subtotal</th>
@@ -29,33 +35,32 @@
                         </thead>
                         <tbody>
                             {% for item in items %}
-                            <tr>
+                            <tr data-item-id="{{ item.id }}">
                                 <td>
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="bg-light rounded p-2">
-                                            <i class="bi bi-journal-richtext fs-5 text-muted"></i>
+                                            <i class="bi {% if item.item_type == 'clothes' %}bi-bag{% else %}bi-journal-richtext{% endif %} fs-5 text-muted"></i>
                                         </div>
                                         <div>
-                                            <a href="/books/{{ item.book_id }}/" class="text-decoration-none"><strong>{{ item.book_title }}</strong></a>
+                                            <a href="{{ item.item_url }}" class="text-decoration-none"><strong>{{ item.item_title }}</strong></a>
+                                            <div class="small text-muted">{{ item.item_type|title }}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-center">
-                                    <form method="post" class="qty-form d-flex align-items-center justify-content-center gap-1">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="update">
-                                        <input type="hidden" name="item_id" value="{{ item.id }}">
-                                        <input type="number" name="quantity" value="{{ item.quantity }}"
-                                               min="1" max="{{ item.book_stock }}"
-                                               class="form-control form-control-sm text-center qty-input"
-                                               data-price="{{ item.book_price }}"
-                                               style="width:70px">
-                                    </form>
+                                    <input type="number"
+                                           value="{{ item.quantity }}"
+                                           min="0" max="{{ item.stock }}"
+                                           class="form-control form-control-sm text-center qty-input"
+                                           data-item-id="{{ item.id }}"
+                                           data-price="{{ item.unit_price }}"
+                                           data-title="{{ item.item_title|escapejs }}"
+                                           style="width:70px; margin:0 auto;">
                                 </td>
-                                <td class="text-end">${{ item.book_price }}</td>
+                                <td class="text-end">${{ item.unit_price }}</td>
                                 <td class="text-end price-tag subtotal-cell">${{ item.subtotal }}</td>
                                 <td class="text-center">
-                                    <form method="post" onsubmit="return confirm('Remove this item?')">
+                                    <form method="post" class="delete-form" onsubmit="return confirm('Remove this item?')">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="item_id" value="{{ item.id }}">
@@ -82,12 +87,12 @@
 
     <div class="col-lg-4">
         {% if items %}
-        <div class="card">
+        <div class="card" id="cart-summary">
             <div class="card-body">
                 <h6 class="mb-3">Cart Summary</h6>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Items</span>
-                    <strong>{{ items|length }}</strong>
+                    <strong id="cart-count">{{ items|length }}</strong>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Total</span>
@@ -109,25 +114,88 @@
 
 {% block extra_js %}
 <script>
-let submitTimer = null;
+const timers = {};
+function getCsrfToken() {
+    const el = document.querySelector('input[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+}
+
+function showToast(msg) {
+    const toast = document.getElementById('cart-toast');
+    document.getElementById('cart-toast-msg').textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+}
+
+function recalcTotal() {
+    let total = 0;
+    document.querySelectorAll('.qty-input').forEach(inp => {
+        const q = Math.max(0, parseInt(inp.value) || 0);
+        const p = parseFloat(inp.dataset.price) || 0;
+        total += q * p;
+    });
+    const totalEl = document.getElementById('cart-total');
+    if (totalEl) totalEl.textContent = '$' + total.toFixed(2);
+}
+
+function sendUpdate(itemId, qty) {
+    const body = new URLSearchParams();
+    body.append('action', 'update');
+    body.append('item_id', itemId);
+    body.append('quantity', qty);
+    body.append('csrfmiddlewaretoken', getCsrfToken());
+    fetch('/cart/', { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' }, redirect: 'manual' });
+}
+
+function sendDelete(itemId) {
+    const body = new URLSearchParams();
+    body.append('action', 'delete');
+    body.append('item_id', itemId);
+    body.append('csrfmiddlewaretoken', getCsrfToken());
+    fetch('/cart/', { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' }, redirect: 'manual' });
+}
+
+function removeRow(itemId, title) {
+    const row = document.querySelector('tr[data-item-id=\"' + itemId + '\"]');
+    if (!row) return;
+    row.style.transition = 'opacity 0.25s';
+    row.style.opacity = '0';
+    setTimeout(() => {
+        row.remove();
+        recalcTotal();
+        document.getElementById('cart-count').textContent = document.querySelectorAll('#cart-table tbody tr').length;
+        showToast('\"' + title + '\" removed from cart.');
+        if (document.querySelectorAll('#cart-table tbody tr').length === 0) {
+            location.reload();
+        }
+    }, 250);
+}
+
 document.querySelectorAll('.qty-input').forEach(input => {
     input.addEventListener('input', function() {
-        const qty = Math.max(1, parseInt(this.value) || 1);
+        const itemId = this.dataset.itemId;
+        const title = this.dataset.title || 'Item';
+        const raw = parseInt(this.value);
+
+        if (raw === 0 || this.value === '0') {
+            if (confirm('Do you want to remove \"' + title + '\" from your cart?')) {
+                sendDelete(itemId);
+                removeRow(itemId, title);
+            } else {
+                this.value = 1;
+                this.dispatchEvent(new Event('input'));
+            }
+            return;
+        }
+
+        const qty = Math.max(1, raw || 1);
         const price = parseFloat(this.dataset.price) || 0;
         const subtotal = (qty * price).toFixed(2);
         this.closest('tr').querySelector('.subtotal-cell').textContent = '$' + subtotal;
+        recalcTotal();
 
-        let total = 0;
-        document.querySelectorAll('.qty-input').forEach(inp => {
-            const q = Math.max(1, parseInt(inp.value) || 1);
-            const p = parseFloat(inp.dataset.price) || 0;
-            total += q * p;
-        });
-        document.getElementById('cart-total').textContent = '$' + total.toFixed(2);
-
-        const form = this.closest('form');
-        clearTimeout(submitTimer);
-        submitTimer = setTimeout(() => form.submit(), 800);
+        clearTimeout(timers[itemId]);
+        timers[itemId] = setTimeout(() => sendUpdate(itemId, qty), 600);
     });
 });
 </script>

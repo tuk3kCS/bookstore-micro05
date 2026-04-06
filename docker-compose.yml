@@ -169,6 +169,20 @@ services:
       db:
         condition: service_healthy
 
+  clothes-service:
+    build: ./clothes-service
+    ports:
+      - "8012:8000"
+    environment:
+      DB_NAME: clothes_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+
   api-gateway:
     build: ./api-gateway
     ports:
@@ -183,6 +197,7 @@ services:
       - pay-service
       - comment-rate-service
       - recommender-ai-service
+      - clothes-service
 
 volumes:
   postgres_data:

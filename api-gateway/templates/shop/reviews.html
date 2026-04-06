@@ -12,7 +12,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="mb-1"><a href="/books/{{ review.book_id }}/" class="text-decoration-none">{{ review.book_title }}</a></h6>
+                        <h6 class="mb-1"><a href="{{ review.item_url }}" class="text-decoration-none">{{ review.item_title }}</a></h6>
                         <div class="mb-2">
                             {% for i in "12345" %}
                                 {% if forloop.counter <= review.rating %}
@@ -48,18 +48,19 @@
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
-                    <input type="hidden" name="book_id" id="selected-book-id" required>
+                    <input type="hidden" name="item_type" id="selected-item-type" value="book" required>
+                    <input type="hidden" name="item_id" id="selected-item-id" required>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Book</label>
+                        <label class="form-label fw-bold">Item</label>
                         <div class="position-relative">
-                            <input type="text" id="book-search" class="form-control" placeholder="Search for a book..." autocomplete="off">
-                            <div id="book-results" class="list-group position-absolute w-100 shadow-sm" style="z-index:10; max-height:220px; overflow-y:auto; display:none;"></div>
+                            <input type="text" id="item-search" class="form-control" placeholder="Search for a book or clothes variant..." autocomplete="off">
+                            <div id="item-results" class="list-group position-absolute w-100 shadow-sm" style="z-index:10; max-height:220px; overflow-y:auto; display:none;"></div>
                         </div>
-                        <div id="selected-book" class="mt-2" style="display:none;">
+                        <div id="selected-item" class="mt-2" style="display:none;">
                             <div class="d-flex align-items-center gap-2 border rounded p-2 bg-light">
                                 <i class="bi bi-journal-richtext text-muted"></i>
-                                <span id="selected-book-title" class="fw-semibold flex-grow-1"></span>
-                                <button type="button" id="clear-book" class="btn btn-sm btn-outline-secondary border-0">
+                                <span id="selected-item-title" class="fw-semibold flex-grow-1"></span>
+                                <button type="button" id="clear-item" class="btn btn-sm btn-outline-secondary border-0">
                                     <i class="bi bi-x-lg"></i>
                                 </button>
                             </div>
@@ -94,45 +95,51 @@
 
 {% block extra_js %}
 <script>
-const books = [
+const items = [
     {% for book in books %}
-    { id: {{ book.id }}, title: "{{ book.title|escapejs }}", author: "{{ book.author|escapejs }}" },
+    { type: "book", id: {{ book.id }}, title: "{{ book.title|escapejs }}", subtitle: "{{ book.author|escapejs }}" },
+    {% endfor %}
+    {% for v in clothes_variants %}
+    { type: "clothes", id: {{ v.id }}, title: "Variant #{{ v.id }}", subtitle: "SKU {{ v.sku|default:''|escapejs }} ({{ v.size|default:''|escapejs }} / {{ v.color|default:''|escapejs }})" },
     {% endfor %}
 ];
 
-const searchInput = document.getElementById('book-search');
-const resultsDiv = document.getElementById('book-results');
-const selectedDiv = document.getElementById('selected-book');
-const selectedTitle = document.getElementById('selected-book-title');
-const hiddenInput = document.getElementById('selected-book-id');
-const clearBtn = document.getElementById('clear-book');
+const searchInput = document.getElementById('item-search');
+const resultsDiv = document.getElementById('item-results');
+const selectedDiv = document.getElementById('selected-item');
+const selectedTitle = document.getElementById('selected-item-title');
+const hiddenType = document.getElementById('selected-item-type');
+const hiddenId = document.getElementById('selected-item-id');
+const clearBtn = document.getElementById('clear-item');
 const submitBtn = document.getElementById('submit-btn');
 
 searchInput.addEventListener('input', function() {
     const q = this.value.trim().toLowerCase();
     resultsDiv.innerHTML = '';
     if (!q) { resultsDiv.style.display = 'none'; return; }
-    const matches = books.filter(b =>
-        b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)
+    const matches = items.filter(i =>
+        i.title.toLowerCase().includes(q) || (i.subtitle || "").toLowerCase().includes(q)
     ).slice(0, 8);
     if (matches.length === 0) {
-        resultsDiv.innerHTML = '<div class="list-group-item text-muted small">No books found</div>';
+        resultsDiv.innerHTML = '<div class="list-group-item text-muted small">No items found</div>';
     } else {
-        matches.forEach(b => {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'list-group-item list-group-item-action py-2';
-            item.innerHTML = '<strong>' + b.title + '</strong> <small class="text-muted">— ' + b.author + '</small>';
-            item.addEventListener('click', () => selectBook(b));
-            resultsDiv.appendChild(item);
+        matches.forEach(i => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action py-2';
+            const tag = i.type === "clothes" ? "Clothes" : "Book";
+            btn.innerHTML = '<strong>' + i.title + '</strong> <small class="text-muted">— ' + (i.subtitle || '') + '</small>' + ' <span class="badge bg-light text-dark border ms-2">' + tag + '</span>';
+            btn.addEventListener('click', () => selectItem(i));
+            resultsDiv.appendChild(btn);
         });
     }
     resultsDiv.style.display = 'block';
 });
 
-function selectBook(book) {
-    hiddenInput.value = book.id;
-    selectedTitle.textContent = book.title + ' — ' + book.author;
+function selectItem(item) {
+    hiddenType.value = item.type;
+    hiddenId.value = item.id;
+    selectedTitle.textContent = item.title + (item.subtitle ? (' — ' + item.subtitle) : '');
     selectedDiv.style.display = 'block';
     searchInput.value = '';
     searchInput.style.display = 'none';
@@ -141,7 +148,8 @@ function selectBook(book) {
 }
 
 clearBtn.addEventListener('click', function() {
-    hiddenInput.value = '';
+    hiddenType.value = 'book';
+    hiddenId.value = '';
     selectedDiv.style.display = 'none';
     searchInput.style.display = '';
     searchInput.value = '';

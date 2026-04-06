@@ -1,0 +1,74 @@
+@startuml Cart Service
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam map {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    FontColor #1565C0
+}
+
+title Cart Service (:8003)
+
+package "cart-service" {
+
+    package "API Endpoints" as api {
+        rectangle "POST /carts/" as ep1 #E8F5E9
+        rectangle "GET /carts/<customer_id>/" as ep2 #E8F5E9
+        rectangle "GET /carts/info/<customer_id>/" as ep3 #E8F5E9
+        rectangle "POST /cart-items/" as ep4 #E8F5E9
+        rectangle "PUT /cart-items/<pk>/" as ep5 #E8F5E9
+        rectangle "DELETE /cart-items/<pk>/" as ep6 #E8F5E9
+    }
+
+    package "Views" as views {
+        component "CartCreate" as v1
+        component "CartDetail" as v2
+        component "CartInfo" as v3
+        component "CartItemCreate" as v4
+        component "CartItemDetail" as v5
+    }
+
+    map "Cart" as cart_model {
+        id => BigAutoField (PK)
+        customer_id => IntegerField
+    }
+
+    map "CartItem" as item_model {
+        id => BigAutoField (PK)
+        cart => ForeignKey(Cart)
+        item_type => CharField(book|clothes)
+        item_id => IntegerField
+        book_id => IntegerField (legacy, optional)
+        quantity => IntegerField
+    }
+
+    database "cart_db\n(PostgreSQL)" as db
+}
+
+component "Book Service" as book_svc #FFF3E0
+component "Clothes Service" as clothes_svc #FFF3E0
+
+ep1 --> v1
+ep2 --> v2
+ep3 --> v3
+ep4 --> v4
+ep5 --> v5
+ep6 --> v5
+
+v1 --> cart_model
+v2 --> cart_model
+v2 --> item_model
+v3 --> cart_model
+v4 --> item_model
+v5 --> item_model
+
+cart_model --> db
+item_model --> db
+cart_model --> item_model : 1..*
+
+v4 ..> book_svc : GET /books/{id}\n(validate book)
+v4 ..> clothes_svc : GET /variants/{id}\n(validate clothes variant)
+
+@enduml

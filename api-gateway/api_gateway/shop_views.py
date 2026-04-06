@@ -11,6 +11,7 @@ PAY_SERVICE_URL = "http://pay-service:8000"
 COMMENT_RATE_SERVICE_URL = "http://comment-rate-service:8000"
 RECOMMENDER_SERVICE_URL = "http://recommender-ai-service:8000"
 CATALOG_SERVICE_URL = "http://catalog-service:8000"
+CLOTHES_SERVICE_URL = "http://clothes-service:8000"
 
 
 def _safe_get(url):
@@ -67,6 +68,66 @@ def _get_cart_id(customer_id):
     return None
 
 
+def _get_item_key(item_type, item_id, fallback_book_id=None):
+    t = item_type or ("book" if fallback_book_id is not None else "book")
+    i = item_id if item_id is not None else fallback_book_id
+    try:
+        return t, int(i) if i is not None else None
+    except Exception:
+        return t, None
+
+
+def _load_clothes_data():
+    products = _safe_get(f"{CLOTHES_SERVICE_URL}/products/")
+    variants = _safe_get(f"{CLOTHES_SERVICE_URL}/variants/")
+    products_map = {p["id"]: p for p in products}
+    variants_map = {v["id"]: v for v in variants}
+    return products, variants, products_map, variants_map
+
+
+def _enrich_recommendations(recs, books_map, catalogs_map):
+    _, _, products_map, variants_map = _load_clothes_data()
+    enriched = []
+    for rec in recs or []:
+        itype, iid = _get_item_key(rec.get("item_type"), rec.get("item_id"), rec.get("book_id"))
+        if iid is None:
+            continue
+        rec["item_type"] = itype
+        rec["item_id"] = iid
+        if itype == "book":
+            book = books_map.get(iid)
+            if not book:
+                continue
+            rec["item_title"] = book.get("title", "Book")
+            rec["item_subtitle"] = f"by {book.get('author', 'Unknown')}"
+            rec["item_price"] = book.get("price", "")
+            rec["item_stock"] = book.get("stock", 0)
+            rec["catalog_name"] = catalogs_map.get(book.get("catalog_id"), "")
+            rec["item_url"] = f"/books/{iid}/"
+            rec["item_icon"] = "bi-journal-richtext"
+        else:
+            variant = variants_map.get(iid)
+            if not variant:
+                continue
+            product = products_map.get(variant.get("product"))
+            if not product:
+                continue
+            title = product.get("name", "Clothes")
+            size = variant.get("size", "")
+            color = variant.get("color", "")
+            desc = " · ".join([x for x in [size, color] if x])
+            rec["item_title"] = title
+            rec["item_subtitle"] = desc or product.get("brand", "")
+            rec["item_price"] = variant.get("price", "")
+            rec["item_stock"] = variant.get("stock", 0)
+            rec["catalog_name"] = catalogs_map.get(product.get("catalog_id"), "")
+            rec["item_url"] = f"/clothes/{product.get('id')}/"
+            rec["item_icon"] = "bi-bag"
+        enriched.append(rec)
+    enriched.sort(key=lambda r: r.get("score", 0), reverse=True)
+    return enriched
+
+
 # ───────── Home ─────────
 
 def shop_home(request):
@@ -98,15 +159,7 @@ def shop_home(request):
                     recommendations = r.json()
             except Exception:
                 pass
-        for rec in recommendations:
-            book = books_map.get(rec.get("book_id"))
-            if book:
-                rec["book_title"] = book["title"]
-                rec["book_author"] = book["author"]
-                rec["book_price"] = book["price"]
-                rec["book_stock"] = book.get("stock", 0)
-                rec["catalog_name"] = catalogs_map.get(book.get("catalog_id"), "")
-        recommendations.sort(key=lambda r: r.get("score", 0), reverse=True)
+        recommendations = _enrich_recommendations(recommendations, books_map, catalogs_map)
 
     return render(request, "shop/home.html", {
         "customer": customer,
@@ -261,7 +314,7 @@ def shop_book_detail(request, pk):
         return redirect("shop_books")
 
     all_reviews = _safe_get(f"{COMMENT_RATE_SERVICE_URL}/reviews/")
-    book_reviews = [rv for rv in all_reviews if rv.get("book_id") == pk]
+    book_reviews = [rv for rv in all_reviews if (rv.get("item_type") in (None, "book")) and (rv.get("item_id") == pk or rv.get("book_id") == pk)]
 
     customers_list = _safe_get(f"{CUSTOMER_SERVICE_URL}/customers/")
     customers_map = {c["id"]: c["name"] for c in customers_list}
@@ -300,7 +353,9 @@ def shop_book_detail(request, pk):
             cid = request.session["customer_id"]
             data = {
                 "customer_id": cid,
-                "book_id": pk,
+                "item_type": "book",
+                "item_id": pk,
+                "book_id": pk,  # backward-compatible
                 "rating": int(request.POST.get("rating", 5)),
                 "comment": request.POST.get("comment", ""),
             }
@@ -323,18 +378,9 @@ def shop_book_detail(request, pk):
         recs = _safe_get(f"{RECOMMENDER_SERVICE_URL}/recommendations/{cid}/")
         all_books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
         all_books_map = {b["id"]: b for b in all_books}
-        for rec in recs:
-            if rec.get("book_id") == pk:
-                continue
-            rb = all_books_map.get(rec.get("book_id"))
-            if rb:
-                rec["book_title"] = rb["title"]
-                rec["book_author"] = rb["author"]
-                rec["book_price"] = rb["price"]
-                rec["book_stock"] = rb.get("stock", 0)
-                rec["catalog_name"] = catalogs_map.get(rb.get("catalog_id"), "")
-                recommendations.append(rec)
-        recommendations.sort(key=lambda r: r.get("score", 0), reverse=True)
+        enriched = _enrich_recommendations(recs, all_books_map, catalogs_map)
+        # Exclude the current book if it appears as a recommendation.
+        recommendations = [r for r in enriched if not (r.get("item_type") == "book" and r.get("item_id") == pk)]
 
     return render(request, "shop/book_detail.html", {
         "customer": customer,
@@ -344,6 +390,169 @@ def shop_book_detail(request, pk):
         "avg_rating": avg_rating,
         "cart_id": cart_id,
         "recommendations": recommendations[:4],
+    })
+
+
+# ───────── Browse Clothes ─────────
+
+def shop_clothes(request):
+    customer = _get_customer(request)
+    catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
+    catalogs_map = {c["id"]: c["name"] for c in catalogs}
+    products, variants, products_map, variants_map = _load_clothes_data()
+
+    q = request.GET.get("q", "").strip().lower()
+    catalog_filter = request.GET.get("catalog", "")
+    in_stock = request.GET.get("in_stock", "")
+    sort_by = request.GET.get("sort", "")
+
+    # Aggregate per product for listing
+    variants_by_product = {}
+    for v in variants:
+        pid = v.get("product")
+        variants_by_product.setdefault(pid, []).append(v)
+
+    items = []
+    for p in products:
+        pid = p.get("id")
+        vs = variants_by_product.get(pid, [])
+        if not vs:
+            continue
+        min_price = min(float(v.get("price", 0)) for v in vs)
+        stock_total = sum(int(v.get("stock", 0)) for v in vs)
+        item = dict(p)
+        item["min_price"] = f"{min_price:.2f}"
+        item["stock_total"] = stock_total
+        item["catalog_name"] = catalogs_map.get(p.get("catalog_id"), "")
+        items.append(item)
+
+    if q:
+        items = [p for p in items if q in (p.get("name") or "").lower() or q in (p.get("brand") or "").lower()]
+
+    if catalog_filter:
+        try:
+            cid = int(catalog_filter)
+            items = [p for p in items if p.get("catalog_id") == cid]
+        except Exception:
+            pass
+
+    if in_stock == "1":
+        items = [p for p in items if p.get("stock_total", 0) > 0]
+
+    if sort_by == "price_asc":
+        items.sort(key=lambda p: float(p.get("min_price") or 0))
+    elif sort_by == "price_desc":
+        items.sort(key=lambda p: float(p.get("min_price") or 0), reverse=True)
+    elif sort_by == "name":
+        items.sort(key=lambda p: (p.get("name") or "").lower())
+    elif sort_by == "newest":
+        items.sort(key=lambda p: p.get("id", 0), reverse=True)
+
+    return render(request, "shop/clothes.html", {
+        "customer": customer,
+        "products": items,
+        "catalogs": catalogs,
+        "catalog_filter": catalog_filter,
+        "q": request.GET.get("q", "").strip(),
+        "in_stock": in_stock,
+        "sort_by": sort_by,
+    })
+
+
+def shop_clothes_detail(request, pk):
+    customer = _get_customer(request)
+    try:
+        r = http_requests.get(f"{CLOTHES_SERVICE_URL}/products/{pk}/", timeout=5)
+        if r.status_code != 200:
+            messages.error(request, "Product not found.")
+            return redirect("shop_clothes")
+        product = r.json()
+    except Exception:
+        messages.error(request, "Clothes service unavailable.")
+        return redirect("shop_clothes")
+
+    variants = _safe_get(f"{CLOTHES_SERVICE_URL}/products/{pk}/variants/")
+
+    catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
+    catalogs_map = {c["id"]: c["name"] for c in catalogs}
+    catalog_name = catalogs_map.get(product.get("catalog_id"), "")
+
+    # Reviews are per-variant (item_type=clothes, item_id=variant_id)
+    all_reviews = _safe_get(f"{COMMENT_RATE_SERVICE_URL}/reviews/")
+    variant_ids = {v.get("id") for v in variants}
+    reviews = [rv for rv in all_reviews if rv.get("item_type") == "clothes" and rv.get("item_id") in variant_ids]
+
+    customers_list = _safe_get(f"{CUSTOMER_SERVICE_URL}/customers/")
+    customers_map = {c["id"]: c["name"] for c in customers_list}
+    for rv in reviews:
+        rv["customer_name"] = customers_map.get(rv.get("customer_id"), "Anonymous")
+
+    avg_rating = 0
+    if reviews:
+        avg_rating = round(sum(rv.get("rating", 0) for rv in reviews) / len(reviews), 1)
+
+    cart_id = None
+    if customer:
+        cart_id = _get_cart_id(request.session.get("customer_id"))
+
+    if request.method == "POST" and customer:
+        action = request.POST.get("action")
+        if action == "add_to_cart":
+            variant_id = request.POST.get("variant_id")
+            qty = int(request.POST.get("quantity", 1))
+            if not variant_id:
+                messages.error(request, "Please select a variant.")
+                return redirect("shop_clothes_detail", pk=pk)
+            data = {
+                "cart": int(request.POST.get("cart_id") or cart_id or 0),
+                "item_type": "clothes",
+                "item_id": int(variant_id),
+                "quantity": qty,
+            }
+            resp = _safe_post(f"{CART_SERVICE_URL}/cart-items/", data)
+            if resp and resp.status_code in (200, 201):
+                messages.success(request, f"'{product.get('name')}' added to your cart!")
+            else:
+                messages.error(request, "Failed to add item to cart.")
+            return redirect("shop_clothes_detail", pk=pk)
+
+        if action == "review":
+            variant_id = request.POST.get("variant_id")
+            if not variant_id:
+                messages.error(request, "Please select a variant to review.")
+                return redirect("shop_clothes_detail", pk=pk)
+            data = {
+                "customer_id": request.session["customer_id"],
+                "item_type": "clothes",
+                "item_id": int(variant_id),
+                "rating": int(request.POST.get("rating", 5)),
+                "comment": request.POST.get("comment", ""),
+            }
+            resp = _safe_post(f"{COMMENT_RATE_SERVICE_URL}/reviews/", data)
+            if resp and resp.status_code == 201:
+                messages.success(request, "Review submitted! Thank you.")
+            else:
+                messages.error(request, "Failed to submit review.")
+            return redirect("shop_clothes_detail", pk=pk)
+
+    # Recommendations (mixed)
+    recommendations = []
+    if customer:
+        cid = request.session["customer_id"]
+        recs = _safe_get(f"{RECOMMENDER_SERVICE_URL}/recommendations/{cid}/")
+        books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
+        books_map = {b["id"]: b for b in books}
+        recommendations = _enrich_recommendations(recs, books_map, catalogs_map)[:4]
+
+    return render(request, "shop/clothes_detail.html", {
+        "customer": customer,
+        "product": product,
+        "variants": variants,
+        "catalog_name": catalog_name,
+        "cart_id": cart_id,
+        "reviews": reviews,
+        "avg_rating": avg_rating,
+        "recommendations": recommendations,
     })
 
 
@@ -402,25 +611,34 @@ def shop_cart(request):
 
     books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     books_map = {b["id"]: b for b in books}
+    _, _, products_map, variants_map = _load_clothes_data()
 
     total = 0
     for item in items:
-        book = books_map.get(item["book_id"])
-        if book:
-            item["book_title"] = book["title"]
-            item["book_price"] = book["price"]
-            item["book_stock"] = book.get("stock", 99)
-            try:
-                subtotal = float(book["price"]) * item["quantity"]
-            except (ValueError, TypeError):
-                subtotal = 0
-            item["subtotal"] = f"{subtotal:.2f}"
-            total += subtotal
+        itype, iid = _get_item_key(item.get("item_type"), item.get("item_id"), item.get("book_id"))
+        item["item_type"] = itype
+        item["item_id"] = iid
+        if itype == "book":
+            book = books_map.get(iid)
+            item["item_title"] = book["title"] if book else f"Book #{iid}"
+            item["item_url"] = f"/books/{iid}/"
+            price = float(book["price"]) if book else 0
+            stock = book.get("stock", 99) if book else 99
         else:
-            item["book_title"] = f"Book #{item['book_id']}"
-            item["book_price"] = "N/A"
-            item["book_stock"] = 99
-            item["subtotal"] = "N/A"
+            variant = variants_map.get(iid)
+            product = products_map.get(variant.get("product")) if variant else None
+            title = product.get("name") if product else "Clothes"
+            desc = " · ".join([x for x in [variant.get("size") if variant else "", variant.get("color") if variant else ""] if x])
+            item["item_title"] = f"{title} ({desc})" if desc else title
+            item["item_url"] = f"/clothes/{product.get('id')}/" if product else "/clothes/"
+            price = float(variant.get("price", 0)) if variant else 0
+            stock = int(variant.get("stock", 0)) if variant else 0
+
+        item["unit_price"] = f"{price:.2f}"
+        item["stock"] = stock
+        subtotal = price * int(item.get("quantity", 0))
+        item["subtotal"] = f"{subtotal:.2f}"
+        total += subtotal
 
     return render(request, "shop/cart.html", {
         "customer": customer,
@@ -442,12 +660,16 @@ def shop_checkout(request):
 
     if request.method == "POST":
         items_raw = []
-        book_ids = request.POST.getlist("item_book_id")
+        types = request.POST.getlist("item_type")
+        ids = request.POST.getlist("item_id")
         quantities = request.POST.getlist("item_quantity")
         prices = request.POST.getlist("item_price")
-        for bid, qty, price in zip(book_ids, quantities, prices):
-            if bid and qty and price:
-                items_raw.append({"book_id": int(bid), "quantity": int(qty), "price": price})
+        for itype, iid, qty, price in zip(types, ids, quantities, prices):
+            if itype and iid and qty and price:
+                payload = {"item_type": itype, "item_id": int(iid), "quantity": int(qty), "price": price}
+                if itype == "book":
+                    payload["book_id"] = int(iid)
+                items_raw.append(payload)
 
         data = {
             "customer_id": cid,
@@ -472,18 +694,30 @@ def shop_checkout(request):
 
     books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     books_map = {b["id"]: b for b in books}
+    _, _, products_map, variants_map = _load_clothes_data()
     total = 0
     for item in items:
-        book = books_map.get(item["book_id"])
-        if book:
-            item["book_title"] = book["title"]
-            item["book_price"] = book["price"]
-            try:
-                subtotal = float(book["price"]) * item["quantity"]
-            except (ValueError, TypeError):
-                subtotal = 0
-            item["subtotal"] = f"{subtotal:.2f}"
-            total += subtotal
+        itype, iid = _get_item_key(item.get("item_type"), item.get("item_id"), item.get("book_id"))
+        if itype == "book":
+            book = books_map.get(iid)
+            title = book["title"] if book else f"Book #{iid}"
+            price = float(book["price"]) if book else 0
+            url = f"/books/{iid}/"
+        else:
+            variant = variants_map.get(iid)
+            product = products_map.get(variant.get("product")) if variant else None
+            title = product.get("name") if product else "Clothes"
+            price = float(variant.get("price", 0)) if variant else 0
+            url = f"/clothes/{product.get('id')}/" if product else "/clothes/"
+
+        item["item_type"] = itype
+        item["item_id"] = iid
+        item["item_title"] = title
+        item["item_url"] = url
+        item["unit_price"] = f"{price:.2f}"
+        subtotal = price * int(item.get("quantity", 0))
+        item["subtotal"] = f"{subtotal:.2f}"
+        total += subtotal
 
     return render(request, "shop/checkout.html", {
         "customer": customer,
@@ -536,14 +770,25 @@ def shop_orders(request):
 
     books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     books_map = {b["id"]: b for b in books}
+    _, _, products_map, variants_map = _load_clothes_data()
 
     for order in my_orders:
         order["payment"] = payments_map.get(order["id"])
         order["shipment"] = shipments_map.get(order["id"])
         order["can_modify"] = order.get("status") not in ("cancelled", "delivered")
         for item in order.get("items", []):
-            book = books_map.get(item.get("book_id"))
-            item["book_title"] = book["title"] if book else "Book"
+            itype, iid = _get_item_key(item.get("item_type"), item.get("item_id"), item.get("book_id"))
+            if itype == "book":
+                book = books_map.get(iid)
+                item["item_title"] = book["title"] if book else f"Book #{iid}"
+                item["item_url"] = f"/books/{iid}/"
+            else:
+                variant = variants_map.get(iid)
+                product = products_map.get(variant.get("product")) if variant else None
+                title = product.get("name") if product else "Clothes"
+                desc = " · ".join([x for x in [variant.get("size") if variant else "", variant.get("color") if variant else ""] if x])
+                item["item_title"] = f"{title} ({desc})" if desc else title
+                item["item_url"] = f"/clothes/{product.get('id')}/" if product else "/clothes/"
 
     my_orders.sort(key=lambda o: o.get("id", 0), reverse=True)
 
@@ -572,9 +817,17 @@ def shop_reviews(request):
     cid = request.session["customer_id"]
 
     if request.method == "POST":
+        item_type = request.POST.get("item_type") or "book"
+        item_id = request.POST.get("item_id")
+        if not item_id:
+            messages.error(request, "Please select an item to review.")
+            return redirect("shop_reviews")
+        item_id = int(item_id)
         data = {
             "customer_id": cid,
-            "book_id": int(request.POST.get("book_id")),
+            "item_type": item_type,
+            "item_id": item_id,
+            "book_id": item_id if item_type == "book" else None,
             "rating": int(request.POST.get("rating")),
             "comment": request.POST.get("comment", ""),
         }
@@ -590,14 +843,27 @@ def shop_reviews(request):
 
     books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     books_map = {b["id"]: b for b in books}
+    _, _, products_map, variants_map = _load_clothes_data()
     for rv in my_reviews:
-        book = books_map.get(rv["book_id"])
-        rv["book_title"] = book["title"] if book else f"Book #{rv['book_id']}"
+        itype, iid = _get_item_key(rv.get("item_type"), rv.get("item_id"), rv.get("book_id"))
+        if itype == "book":
+            book = books_map.get(iid)
+            rv["item_title"] = book["title"] if book else f"Book #{iid}"
+            rv["item_url"] = f"/books/{iid}/"
+        else:
+            variant = variants_map.get(iid)
+            product = products_map.get(variant.get("product")) if variant else None
+            title = product.get("name") if product else "Clothes"
+            desc = " · ".join([x for x in [variant.get("size") if variant else "", variant.get("color") if variant else ""] if x])
+            rv["item_title"] = f"{title} ({desc})" if desc else title
+            rv["item_url"] = f"/clothes/{product.get('id')}/" if product else "/clothes/"
 
     return render(request, "shop/reviews.html", {
         "customer": customer,
         "reviews": my_reviews,
         "books": books,
+        "clothes_products": list(products_map.values()),
+        "clothes_variants": list(variants_map.values()),
     })
 
 
