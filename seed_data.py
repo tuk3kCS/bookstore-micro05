@@ -5,6 +5,7 @@ Run this script after all services are up: python seed_data.py
 import time
 import sys
 import json
+import os
 import urllib.request
 import urllib.error
 
@@ -20,6 +21,9 @@ PAY_URL = "http://localhost:8009"
 REVIEW_URL = "http://localhost:8010"
 RECOMMEND_URL = "http://localhost:8011"
 CLOTHES_URL = "http://localhost:8012"
+BEHAVIOR_URL = "http://localhost:8013"
+KB_URL = "http://localhost:8014"
+ADVISOR_URL = "http://localhost:8015"
 
 
 def _http_json(method, url, data=None, timeout=10):
@@ -74,6 +78,7 @@ def wait_for_services():
         ("order-service", f"{ORDER_URL}/orders/"),
         ("review-service", f"{REVIEW_URL}/reviews/"),
         ("recommender-service", f"{RECOMMEND_URL}/recommendations/"),
+        ("behavior-analytics-service", f"{BEHAVIOR_URL}/health/"),
     ]
     for name, url in services:
         for attempt in range(10):
@@ -93,6 +98,16 @@ def seed():
     print("=" * 50)
 
     wait_for_services()
+    if os.environ.get("LLM_API_KEY"):
+        print("\n--- Ingesting Knowledge Base (RAG) ---")
+        status, payload = _http_json("POST", f"{KB_URL}/kb/ingest/", data={}, timeout=60)
+        if status in (200, 201):
+            print(f"  [OK] KB ingest -> {payload}")
+        else:
+            print(f"  [WARN] KB ingest failed -> {status}: {str(payload)[:120]}")
+    else:
+        print("\n--- Ingesting Knowledge Base (RAG) ---")
+        print("  [SKIP] Set LLM_API_KEY env var to enable embeddings + ingest.")
 
     # ── Catalogs ──
     print("\n--- Creating Catalogs ---")
@@ -180,6 +195,31 @@ def seed():
         result = post(f"{CUSTOMER_URL}/customers/", c)
         if result:
             customers.append(result)
+
+    # ── Behavior events (demo) ──
+    print("\n--- Sending Demo Behavior Events ---")
+    demo_events = [
+        {"customer_id": 1, "event_type": "page_view", "page": "/", "metadata": {"page": "home"}},
+        {"customer_id": 1, "event_type": "view_item", "item_type": "book", "item_id": 6, "page": "/books/6/"},
+        {"customer_id": 1, "event_type": "add_to_cart", "item_type": "book", "item_id": 6, "page": "/books/6/", "metadata": {"quantity": 1}},
+        {"customer_id": 2, "event_type": "view_item", "item_type": "clothes_variant", "item_id": 4, "page": "/clothes/2/"},
+        {"customer_id": 2, "event_type": "add_to_cart", "item_type": "clothes_variant", "item_id": 4, "page": "/clothes/2/", "metadata": {"quantity": 1}},
+    ]
+    for ev in demo_events:
+        post(f"{BEHAVIOR_URL}/events/", ev)
+
+    # ── Advisor chat (smoke) ──
+    print("\n--- Advisor Chat Smoke Test ---")
+    if os.environ.get("LLM_API_KEY"):
+        msg = {"customer_id": 1, "message": "Tôi muốn biết các phương thức thanh toán hỗ trợ?"}
+        status, payload = _http_json("POST", f"{ADVISOR_URL}/advisor/chat/", data=msg, timeout=90)
+        if status in (200, 201) and isinstance(payload, dict):
+            ans = payload.get("answer", "")
+            print(f"  [OK] advisor -> {ans[:140]}")
+        else:
+            print(f"  [WARN] advisor chat failed -> {status}: {str(payload)[:140]}")
+    else:
+        print("  [SKIP] Set LLM_API_KEY env var to enable chat.")
 
     # Ensure carts exist for demo customers (best-effort).
     print("\n--- Ensuring Carts Exist ---")

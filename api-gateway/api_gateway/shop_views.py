@@ -1,5 +1,9 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import threading
+import uuid
 import requests as http_requests
 
 BOOK_SERVICE_URL = "http://book-service:8000"
@@ -12,6 +16,8 @@ COMMENT_RATE_SERVICE_URL = "http://comment-rate-service:8000"
 RECOMMENDER_SERVICE_URL = "http://recommender-ai-service:8000"
 CATALOG_SERVICE_URL = "http://catalog-service:8000"
 CLOTHES_SERVICE_URL = "http://clothes-service:8000"
+BEHAVIOR_SERVICE_URL = "http://behavior-analytics-service:8000"
+ADVISOR_SERVICE_URL = "http://chat-advisor-service:8000"
 
 
 def _safe_get(url):
@@ -34,6 +40,49 @@ def _safe_put(url, data):
         return http_requests.put(url, json=data, timeout=5)
     except Exception:
         return None
+
+
+def _ensure_session_id(request):
+    sid = request.session.get("behavior_session_id")
+    if not sid:
+        sid = f"sess_{uuid.uuid4().hex}"
+        request.session["behavior_session_id"] = sid
+    return sid
+
+
+def _emit_event_async(request, event_type, item_type="", item_id=None, metadata=None):
+    """
+    Best-effort, non-blocking event tracking.
+    Never raises; failures are ignored.
+    """
+    try:
+        customer_id = request.session.get("customer_id")
+        payload = {
+            "customer_id": customer_id,
+            "session_id": _ensure_session_id(request),
+            "correlation_id": request.META.get("HTTP_X_REQUEST_ID", ""),
+            "event_type": event_type,
+            "page": request.path,
+            "referrer": request.META.get("HTTP_REFERER", "")[:255],
+            "item_type": item_type or "",
+            "item_id": item_id,
+            "metadata": metadata or {},
+            "user_agent": (request.META.get("HTTP_USER_AGENT", "") or "")[:255],
+        }
+        # Best effort: IP may be missing/invalid in dev; omit if empty.
+        ip = request.META.get("REMOTE_ADDR", "")
+        if ip:
+            payload["ip"] = ip
+
+        def _send():
+            try:
+                http_requests.post(f"{BEHAVIOR_SERVICE_URL}/events/", json=payload, timeout=1.5)
+            except Exception:
+                pass
+
+        threading.Thread(target=_send, daemon=True).start()
+    except Exception:
+        pass
 
 
 def _get_customer(request):
@@ -132,6 +181,7 @@ def _enrich_recommendations(recs, books_map, catalogs_map):
 
 def shop_home(request):
     customer = _get_customer(request)
+    _emit_event_async(request, "page_view", metadata={"page": "home"})
     books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
     books_map = {b["id"]: b for b in books}
@@ -181,12 +231,15 @@ def shop_login(request):
                 customer = r.json()
                 request.session["customer_id"] = customer["id"]
                 request.session["customer_name"] = customer["name"]
+                _emit_event_async(request, "login", metadata={"email": email})
                 messages.success(request, f"Welcome back, {customer['name']}!")
                 return redirect("shop_home")
             else:
                 messages.error(request, "Invalid email or password.")
         else:
             messages.error(request, "Please enter both email and password.")
+    else:
+        _emit_event_async(request, "page_view", metadata={"page": "login"})
     return render(request, "shop/login.html", {"customer": None})
 
 
@@ -207,10 +260,13 @@ def shop_register(request):
                 new_customer = r.json()
                 request.session["customer_id"] = new_customer["id"]
                 request.session["customer_name"] = new_customer.get("name", name)
+                _emit_event_async(request, "register", metadata={"email": email})
                 messages.success(request, f"Welcome, {name}! Your account and cart have been created.")
                 return redirect("shop_home")
             else:
                 messages.error(request, "Registration failed. Email may already be in use.")
+    else:
+        _emit_event_async(request, "page_view", metadata={"page": "register"})
     return render(request, "shop/login.html", {"customer": None, "show_register": True})
 
 
@@ -224,6 +280,7 @@ def shop_logout(request):
 
 def shop_books(request):
     customer = _get_customer(request)
+    _emit_event_async(request, "page_view", metadata={"page": "books", "q": request.GET.get("q", ""), "catalog": request.GET.get("catalog", "")})
     all_books = _safe_get(f"{BOOK_SERVICE_URL}/books/")
     catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
     catalogs_map = {c["id"]: c["name"] for c in catalogs}
@@ -302,6 +359,7 @@ def shop_books(request):
 
 def shop_book_detail(request, pk):
     customer = _get_customer(request)
+    _emit_event_async(request, "view_item", item_type="book", item_id=pk)
 
     try:
         r = http_requests.get(f"{BOOK_SERVICE_URL}/books/{pk}/", timeout=5)
@@ -344,6 +402,7 @@ def shop_book_detail(request, pk):
             }
             resp = _safe_post(f"{CART_SERVICE_URL}/cart-items/", data)
             if resp and resp.status_code in (200, 201):
+                _emit_event_async(request, "add_to_cart", item_type="book", item_id=pk, metadata={"quantity": data.get("quantity", 1)})
                 messages.success(request, f"'{book['title']}' added to your cart!")
             else:
                 messages.error(request, "Failed to add item to cart.")
@@ -361,6 +420,7 @@ def shop_book_detail(request, pk):
             }
             resp = _safe_post(f"{COMMENT_RATE_SERVICE_URL}/reviews/", data)
             if resp and resp.status_code == 201:
+                _emit_event_async(request, "review_submit", item_type="book", item_id=pk, metadata={"rating": data.get("rating")})
                 messages.success(request, "Review submitted! Thank you.")
             else:
                 messages.error(request, "Failed to submit review.")
@@ -397,6 +457,7 @@ def shop_book_detail(request, pk):
 
 def shop_clothes(request):
     customer = _get_customer(request)
+    _emit_event_async(request, "page_view", metadata={"page": "clothes", "q": request.GET.get("q", ""), "catalog": request.GET.get("catalog", "")})
     catalogs = _safe_get(f"{CATALOG_SERVICE_URL}/catalogs/")
     catalogs_map = {c["id"]: c["name"] for c in catalogs}
     products, variants, products_map, variants_map = _load_clothes_data()
@@ -461,6 +522,7 @@ def shop_clothes(request):
 
 def shop_clothes_detail(request, pk):
     customer = _get_customer(request)
+    _emit_event_async(request, "view_item", item_type="clothes_product", item_id=pk)
     try:
         r = http_requests.get(f"{CLOTHES_SERVICE_URL}/products/{pk}/", timeout=5)
         if r.status_code != 200:
@@ -511,6 +573,7 @@ def shop_clothes_detail(request, pk):
             }
             resp = _safe_post(f"{CART_SERVICE_URL}/cart-items/", data)
             if resp and resp.status_code in (200, 201):
+                _emit_event_async(request, "add_to_cart", item_type="clothes_variant", item_id=int(variant_id), metadata={"quantity": qty, "product_id": pk})
                 messages.success(request, f"'{product.get('name')}' added to your cart!")
             else:
                 messages.error(request, "Failed to add item to cart.")
@@ -530,6 +593,7 @@ def shop_clothes_detail(request, pk):
             }
             resp = _safe_post(f"{COMMENT_RATE_SERVICE_URL}/reviews/", data)
             if resp and resp.status_code == 201:
+                _emit_event_async(request, "review_submit", item_type="clothes_variant", item_id=int(variant_id), metadata={"rating": data.get("rating"), "product_id": pk})
                 messages.success(request, "Review submitted! Thank you.")
             else:
                 messages.error(request, "Failed to submit review.")
@@ -564,6 +628,7 @@ def shop_cart(request):
         return redir
     customer = _get_customer(request)
     cid = request.session["customer_id"]
+    _emit_event_async(request, "page_view", metadata={"page": "cart"})
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -657,6 +722,7 @@ def shop_checkout(request):
         return redir
     customer = _get_customer(request)
     cid = request.session["customer_id"]
+    _emit_event_async(request, "checkout_start")
 
     if request.method == "POST":
         items_raw = []
@@ -679,6 +745,7 @@ def shop_checkout(request):
         }
         r = _safe_post(f"{ORDER_SERVICE_URL}/orders/", data)
         if r and r.status_code == 201:
+            _emit_event_async(request, "checkout_complete", metadata={"order_id": r.json().get("id") if hasattr(r, "json") else None})
             messages.success(request, "Order placed successfully! Payment and shipment have been initiated.")
             return redirect("shop_orders")
         else:
@@ -759,6 +826,7 @@ def shop_orders(request):
                 messages.error(request, "Failed to cancel order.")
 
         return redirect("shop_orders")
+    _emit_event_async(request, "page_view", metadata={"page": "orders"})
 
     all_orders = _safe_get(f"{ORDER_SERVICE_URL}/orders/")
     my_orders = [o for o in all_orders if o.get("customer_id") == cid]
@@ -833,10 +901,12 @@ def shop_reviews(request):
         }
         r = _safe_post(f"{COMMENT_RATE_SERVICE_URL}/reviews/", data)
         if r and r.status_code == 201:
+            _emit_event_async(request, "review_submit", item_type=item_type, item_id=item_id, metadata={"rating": data.get("rating")})
             messages.success(request, "Review submitted! Thank you for your feedback.")
         else:
             messages.error(request, "Failed to submit review.")
         return redirect("shop_reviews")
+    _emit_event_async(request, "page_view", metadata={"page": "reviews"})
 
     all_reviews = _safe_get(f"{COMMENT_RATE_SERVICE_URL}/reviews/")
     my_reviews = [rv for rv in all_reviews if rv.get("customer_id") == cid]
@@ -926,3 +996,39 @@ def shop_account(request):
 
     customer = _get_customer(request)
     return render(request, "shop/account.html", {"customer": customer})
+
+
+@csrf_exempt
+def advisor_chat_proxy(request):
+    """
+    Proxy endpoint used by the web chat bubble to avoid CORS and
+    automatically attach the current session's customer_id when available.
+    POST /advisor/chat/  body: {"message": "..."}
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        import json
+
+        raw = request.body.decode("utf-8") if request.body else "{}"
+        payload_in = json.loads(raw) if raw else {}
+    except Exception:
+        payload_in = {}
+
+    msg = (payload_in.get("message") or "").strip()
+    if not msg:
+        return JsonResponse({"error": "message is required"}, status=400)
+
+    customer_id = request.session.get("customer_id")
+    payload = {"message": msg, "customer_id": customer_id}
+
+    try:
+        r = http_requests.post(f"{ADVISOR_SERVICE_URL}/advisor/chat/", json=payload, timeout=90)
+        try:
+            out = r.json()
+        except Exception:
+            out = {"error": "Invalid advisor response"}
+        return JsonResponse(out, status=r.status_code)
+    except Exception as e:
+        return JsonResponse({"error": f"advisor unavailable: {str(e)}"}, status=502)

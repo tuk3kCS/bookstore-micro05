@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-advisor-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chat-advisor-service
+  template:
+    metadata:
+      labels:
+        app: chat-advisor-service
+    spec:
+      containers:
+        - name: chat-advisor-service
+          image: chat-advisor-service:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: BEHAVIOR_SERVICE_URL
+              value: http://behavior-analytics-service:8000
+            - name: KB_RAG_SERVICE_URL
+              value: http://kb-rag-service:8000
+            - name: LLM_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: LLM_BASE_URL
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: LLM_API_KEY
+            - name: CHAT_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: CHAT_MODEL
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-advisor-service
+spec:
+  selector:
+    app: chat-advisor-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+

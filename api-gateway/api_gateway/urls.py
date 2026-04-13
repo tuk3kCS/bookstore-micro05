@@ -17,6 +17,7 @@ urlpatterns = [
     path('orders/', shop_views.shop_orders, name='shop_orders'),
     path('reviews/', shop_views.shop_reviews, name='shop_reviews'),
     path('account/', shop_views.shop_account, name='shop_account'),
+    path('advisor/chat/', shop_views.advisor_chat_proxy, name='advisor_chat_proxy'),
 
     # Admin / Staff Dashboard
     path('admin/', admin.site.urls),

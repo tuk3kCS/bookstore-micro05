@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kb-rag-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kb-rag-service
+  template:
+    metadata:
+      labels:
+        app: kb-rag-service
+    spec:
+      containers:
+        - name: kb-rag-service
+          image: kb-rag-service:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DB_NAME
+              value: kb_db
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              value: postgres
+            - name: DB_HOST
+              value: db
+            - name: DB_PORT
+              value: "5432"
+            - name: QDRANT_URL
+              value: http://qdrant:6333
+            - name: QDRANT_COLLECTION
+              value: kb_chunks
+            - name: KB_SOURCE_DIR
+              value: /kb
+            - name: LLM_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: LLM_BASE_URL
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: LLM_API_KEY
+            - name: EMBEDDING_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: EMBEDDING_MODEL
+          volumeMounts:
+            - name: kb-volume
+              mountPath: /kb
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: kb-volume
+          configMap:
+            name: kb-docs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kb-rag-service
+spec:
+  selector:
+    app: kb-rag-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+

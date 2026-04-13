@@ -34,6 +34,57 @@
         footer { margin-top: auto; background: #212529; color: rgba(255,255,255,0.6); padding: 1.5rem 0; font-size: 0.85rem; }
         .cart-badge { position: relative; }
         .cart-badge .badge { position: absolute; top: -5px; right: -10px; font-size: 0.65rem; }
+
+        /* Chat bubble */
+        .chat-bubble-btn {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            width: 54px;
+            height: 54px;
+            border-radius: 999px;
+            background: #6f42c1;
+            color: #fff;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+            z-index: 1055;
+        }
+        .chat-panel {
+            position: fixed;
+            right: 18px;
+            bottom: 84px;
+            width: min(380px, calc(100vw - 36px));
+            height: 520px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.22);
+            overflow: hidden;
+            display: none;
+            z-index: 1055;
+        }
+        .chat-panel.open { display: flex; flex-direction: column; }
+        .chat-header {
+            background: linear-gradient(135deg, #6f42c1 0%, #4a2882 100%);
+            color: #fff;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .chat-messages { padding: 12px; overflow: auto; flex: 1; background: #f8f9fa; }
+        .chat-msg { margin: 8px 0; display: flex; }
+        .chat-msg.user { justify-content: flex-end; }
+        .chat-bubble {
+            max-width: 85%;
+            padding: 10px 12px;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            line-height: 1.25rem;
+            white-space: pre-wrap;
+        }
+        .chat-msg.user .chat-bubble { background: #6f42c1; color: #fff; border-bottom-right-radius: 6px; }
+        .chat-msg.assistant .chat-bubble { background: #fff; color: #212529; border: 1px solid rgba(0,0,0,0.08); border-bottom-left-radius: 6px; }
+        .chat-footer { padding: 10px; background: #fff; border-top: 1px solid rgba(0,0,0,0.06); }
     </style>
 </head>
 <body>
@@ -120,6 +171,27 @@
         </div>
     </footer>
 
+    <!-- Chat bubble (Customer Advisor) -->
+    <div class="chat-panel" id="chatPanel" aria-hidden="true">
+        <div class="chat-header">
+            <div class="fw-semibold"><i class="bi bi-chat-dots me-2"></i>Tư vấn</div>
+            <button class="btn btn-sm btn-light" type="button" id="chatCloseBtn">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-footer">
+            <form id="chatForm" class="d-flex gap-2">
+                <input id="chatInput" class="form-control" placeholder="Hỏi về thanh toán, vận chuyển, hoàn trả..." autocomplete="off" />
+                <button class="btn btn-shop" type="submit"><i class="bi bi-send"></i></button>
+            </form>
+            <div class="small text-muted mt-2">Có trích dẫn KB khi bạn đã ingest (RAG).</div>
+        </div>
+    </div>
+    <button class="chat-bubble-btn" id="chatBubbleBtn" type="button" aria-label="Open chat">
+        <i class="bi bi-chat-dots fs-4"></i>
+    </button>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     setTimeout(function(){
@@ -127,6 +199,67 @@
             bootstrap.Alert.getOrCreateInstance(el).close();
         });
     }, 3000);
+    </script>
+    <script>
+    (function(){
+        const btn = document.getElementById('chatBubbleBtn');
+        const panel = document.getElementById('chatPanel');
+        const closeBtn = document.getElementById('chatCloseBtn');
+        const form = document.getElementById('chatForm');
+        const input = document.getElementById('chatInput');
+        const messages = document.getElementById('chatMessages');
+
+        function addMessage(role, text){
+            const row = document.createElement('div');
+            row.className = 'chat-msg ' + role;
+            const b = document.createElement('div');
+            b.className = 'chat-bubble';
+            b.textContent = text;
+            row.appendChild(b);
+            messages.appendChild(row);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function openChat(){
+            panel.classList.add('open');
+            panel.setAttribute('aria-hidden','false');
+            if (!messages.dataset.booted){
+                addMessage('assistant', 'Chào bạn! Mình có thể tư vấn sản phẩm và chính sách (thanh toán, vận chuyển, đổi trả). Bạn cần hỗ trợ gì?');
+                messages.dataset.booted = '1';
+            }
+            setTimeout(()=>input && input.focus(), 50);
+        }
+        function closeChat(){
+            panel.classList.remove('open');
+            panel.setAttribute('aria-hidden','true');
+        }
+
+        btn && btn.addEventListener('click', function(){
+            if (panel.classList.contains('open')) closeChat(); else openChat();
+        });
+        closeBtn && closeBtn.addEventListener('click', closeChat);
+
+        form && form.addEventListener('submit', async function(e){
+            e.preventDefault();
+            const text = (input.value || '').trim();
+            if (!text) return;
+            input.value = '';
+            addMessage('user', text);
+            addMessage('assistant', 'Đang trả lời...');
+            const last = messages.lastElementChild;
+            try{
+                const res = await fetch('/advisor/chat/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json().catch(()=>({error:'Invalid response'}));
+                last.querySelector('.chat-bubble').textContent = data.answer || data.error || 'Có lỗi xảy ra.';
+            }catch(err){
+                last.querySelector('.chat-bubble').textContent = 'Không thể kết nối dịch vụ tư vấn.';
+            }
+        });
+    })();
     </script>
     {% block extra_js %}{% endblock %}
 </body>

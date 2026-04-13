@@ -1,0 +1,7 @@
+django
+djangorestframework
+psycopg2-binary
+# CPU-only PyTorch (keep images smaller)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+

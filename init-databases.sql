@@ -10,3 +10,5 @@ CREATE DATABASE pay_db;
 CREATE DATABASE comment_rate_db;
 CREATE DATABASE recommender_db;
 CREATE DATABASE clothes_db;
+CREATE DATABASE behavior_db;
+CREATE DATABASE kb_db;
